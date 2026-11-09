@@ -1,0 +1,1 @@
+chạy project: .\run.ps1

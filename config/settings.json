@@ -2,7 +2,7 @@
     "app_name": "Stheno-waifu",
     "version": "0.1.0",
     "ollama": {
-        "base_url": "http://localhost:11434",
+        "base_url": "http://127.0.0.1:11434",
         "model": "stheno-qwen:latest"
     },
     "memory": {
