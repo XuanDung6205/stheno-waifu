@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from urllib.request import Request, urlopen
-from urllib.error import URLError
+from urllib.error import URLError, HTTPError
 
 
 # Xác định thư mục gốc của project
@@ -57,7 +57,7 @@ def check_ollama():
 
     return True
 
-def chat(message: str) -> str:
+def chat(message: str, history: list[dict] | None = None) -> str:
     """
     Send a message to Ollama and return AI response.
     """
@@ -72,16 +72,32 @@ def chat(message: str) -> str:
 
     url = f"{base_url}/api/chat" #endpoint để giao tiếp
 
+    # Copy previous conversation history
+    messages = list(history or [])
+
+    # Add current user message
+    messages.append({
+        "role": "user",
+        "content": message
+    })
+
+    #gửi cho AI
     payload = {
         "model": model_name,
-        "messages": [
-            {
-                "role": "user",
-                "content": message
-            }
-        ],
+        "messages": messages,
+
+        # Enable Thinking
+        "think": False,
         "stream": False
     }
+
+    # print("\n========== REQUEST DEBUG ==========")
+    # print(json.dumps(
+    #     payload["messages"],
+    #     ensure_ascii=False,
+    #     indent=2
+    # ))
+    # print("===================================\n")
 
     request = Request(
         url,
@@ -131,11 +147,42 @@ def chat(message: str) -> str:
     # },
     # "done": true
     # }
+    #nhận kết quả
     assistant_message = result.get(
         "message", {}
     ).get("content")
 
+    # print("\n========== STHENO METRICS ==========")
+    # print("Done reason:", result.get("done_reason"))
+    # print("Prompt tokens:", result.get("prompt_eval_count"))
+    # print("Generated tokens:", result.get("eval_count"))
+    # print("Thinking chars:", len(result.get("thinking") or ""))
+    # print("Content chars:", len(result.get("content") or ""))
+    # print("====================================\n")
+
+    # print("\n========== OLLAMA DEBUG ==========")
+    # print(json.dumps(result, indent=2, ensure_ascii=False))
+    # print("==================================\n")
+
+    prompt_tokens = result.get("prompt_eval_count", 0)
+    cached_tokens = result.get("prompt_eval_cached_count", 0)
+    generated_tokens = result.get("eval_count", 0)
+
+    total_tokens = prompt_tokens + generated_tokens
+
+    print("\n========== STHENO TOKEN USAGE ==========")
+    print(f"Input tokens:     {prompt_tokens}")
+    print(f"Cached tokens:    {cached_tokens}")
+    print(f"Output tokens:    {generated_tokens}")
+    print(f"Total tokens:     {total_tokens}")
+    print("========================================")
+
     if not assistant_message:
+        
+        # print("\n========== OLLAMA DEBUG ==========")
+        # print(json.dumps(result, indent=2, ensure_ascii=False))
+        # print("==================================\n")
+
         raise RuntimeError(
             "Ollama returned an empty response!"
         )
