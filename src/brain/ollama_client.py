@@ -57,6 +57,91 @@ def check_ollama():
 
     return True
 
+def chat(message: str) -> str:
+    """
+    Send a message to Ollama and return AI response.
+    """
+
+    if not message.strip():
+        raise ValueError("Message cannot be empty!")
+
+    settings = load_settings()
+
+    base_url = settings["ollama"]["base_url"].rstrip("/")
+    model_name = settings["ollama"]["model"]
+
+    url = f"{base_url}/api/chat" #endpoint để giao tiếp
+
+    payload = {
+        "model": model_name,
+        "messages": [
+            {
+                "role": "user",
+                "content": message
+            }
+        ],
+        "stream": False
+    }
+
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        },
+        method="POST"
+    )
+
+    try:
+        with urlopen(request, timeout=180) as response:
+            result = json.loads(
+                response.read().decode("utf-8")
+            )
+
+    except HTTPError as error:
+        details = error.read().decode(
+            "utf-8", errors="replace"
+        )
+
+        raise RuntimeError(
+            f"Ollama HTTP Error {error.code}: {details}"
+        ) from error
+
+    except URLError as error:
+        raise RuntimeError(
+            f"Cannot connect to Ollama: {error.reason}"
+        ) from error
+
+    except TimeoutError as error:
+        raise RuntimeError(
+            "Ollama response timed out!"
+        ) from error
+
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            "Ollama returned invalid JSON!"
+        ) from error
+
+    # {
+    # "model": "stheno-waifu:latest",
+    # "message": {
+    #     "role": "assistant",
+    #     "content": "Chào anh! Em vẫn đang đợi anh đây..."
+    # },
+    # "done": true
+    # }
+    assistant_message = result.get(
+        "message", {}
+    ).get("content")
+
+    if not assistant_message:
+        raise RuntimeError(
+            "Ollama returned an empty response!"
+        )
+
+    return assistant_message.strip()
+
 
 if __name__ == "__main__":
     print("===== STHENO BRAIN CHECK =====")
