@@ -31,8 +31,15 @@ def main():
                 break
 
             if command == "/reset":
-                conversation.reset()
-                print("\n[OK] Conversation history cleared!")
+                title = input("\nNhập tên cuộc trò chuyện mới: ").strip()
+                if not title:
+                    title = "New conversation"
+
+                conversation.reset(title)
+                print(
+                    "\n[OK] New conversation started!"
+                    " Previous history preserved."
+                )
                 continue
 
             try:
