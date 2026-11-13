@@ -1,5 +1,6 @@
 
 from src.core.conversation import Conversation
+import json
 
 
 def main():
@@ -45,9 +46,22 @@ def main():
             try:
                 print("\nStheno đang suy nghĩ...")
 
+                 # In phản hồi của Stheno
                 response = conversation.send(message)
 
-                print(f"\nStheno: {response}")
+                print(f"Stheno: {response['content']}")
+
+                 # In toàn bộ memories
+                print("\n========== EXTRACTED MEMORIES ==========")
+                print(json.dumps(
+                    response["memories"],
+                    ensure_ascii=False,
+                    indent=4
+                ))
+                print("========================================")
+
+                # đề dành lưu xuống database sau này
+                memories = response["memories"]
 
             except (RuntimeError, ValueError) as error:
                 print(f"\n[ERROR] {error}")

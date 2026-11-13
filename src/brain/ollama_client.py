@@ -10,6 +10,7 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 
 def load_settings():
     config_path = ROOT_DIR / "config" / "settings.json"
+    
 
     with open(config_path, "r", encoding="utf-8") as file:
         return json.load(file)
@@ -57,7 +58,7 @@ def check_ollama():
 
     return True
 
-def chat(message: str, history: list[dict] | None = None) -> str:
+def chat(message: str, history: list[dict] | None = None) -> dict:
     """
     Send a message to Ollama and return AI response.
     """
@@ -81,13 +82,21 @@ def chat(message: str, history: list[dict] | None = None) -> str:
         "content": message
     })
 
+    prompt_path = ROOT_DIR / "prompts" / "chat_system.txt"
+    system_prompt = prompt_path.read_text(encoding="utf-8")
+
+    # Add system prompt to the beginning
+    messages.insert(0, {
+        "role": "system",
+        "content": system_prompt
+    })
+
     #gửi cho AI
     payload = {
         "model": model_name,
         "messages": messages,
-
-        # Enable Thinking
         "think": False,
+        "format": "json",
         "stream": False
     }
 
@@ -147,10 +156,73 @@ def chat(message: str, history: list[dict] | None = None) -> str:
     # },
     # "done": true
     # }
+
     #nhận kết quả
     assistant_message = result.get(
         "message", {}
     ).get("content")
+
+    # chuyển assistant_message thành json
+    try:
+        output = json.loads(assistant_message)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            "Stheno returned invalid JSON!"
+        ) from error
+
+    # Kiểm tra Ollama có trả về content không
+    if not isinstance(assistant_message, str) or not assistant_message.strip():
+
+        print("\n========== RAW OLLAMA RESPONSE ==========")
+        print(json.dumps(
+            result,
+            ensure_ascii=False,
+            indent=4
+        ))
+        print("=========================================")
+
+        raise RuntimeError(
+            "Ollama returned an empty response!"
+        )
+
+    # Parse JSON
+    try:
+        output = json.loads(assistant_message)
+
+    except json.JSONDecodeError as error:
+
+        print("\n========== INVALID JSON ==========")
+        print(assistant_message)
+        print("==================================")
+
+        raise RuntimeError(
+            "Stheno returned invalid JSON!"
+        ) from error
+
+    # Kiểm tra JSON structure
+    if not isinstance(output, dict):
+        raise RuntimeError("Invalid JSON structure!")
+
+    response_content = output.get("content")
+    memories = output.get("memories")
+
+    # Debug nếu thiếu content
+    if not isinstance(response_content, str) or not response_content.strip():
+
+        print("\n========== INVALID STHENO OUTPUT ==========")
+        print(json.dumps(
+            output,
+            ensure_ascii=False,
+            indent=4
+        ))
+        print("===========================================")
+
+        raise RuntimeError(
+            "Stheno returned an empty content field!"
+        )
+
+    if not isinstance(memories, list):
+        raise RuntimeError("Invalid memories format!")
 
     # print("\n========== STHENO METRICS ==========")
     # print("Done reason:", result.get("done_reason"))
@@ -187,7 +259,10 @@ def chat(message: str, history: list[dict] | None = None) -> str:
             "Ollama returned an empty response!"
         )
 
-    return assistant_message.strip()
+    return {
+        "content": response_content.strip(),
+        "memories": memories
+    }
 
 
 if __name__ == "__main__":

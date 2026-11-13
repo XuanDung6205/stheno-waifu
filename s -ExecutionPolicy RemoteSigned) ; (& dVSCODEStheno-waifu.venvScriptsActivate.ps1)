@@ -1,0 +1,211 @@
+[1mdiff --git a/src/brain/ollama_client.py b/src/brain/ollama_client.py[m
+[1mindex 5a5e967..b77e580 100644[m
+[1m--- a/src/brain/ollama_client.py[m
+[1m+++ b/src/brain/ollama_client.py[m
+[36m@@ -10,6 +10,7 @@[m [mROOT_DIR = Path(__file__).resolve().parents[2][m
+ [m
+ def load_settings():[m
+     config_path = ROOT_DIR / "config" / "settings.json"[m
+[32m+[m[41m    [m
+ [m
+     with open(config_path, "r", encoding="utf-8") as file:[m
+         return json.load(file)[m
+[36m@@ -57,7 +58,7 @@[m [mdef check_ollama():[m
+ [m
+     return True[m
+ [m
+[31m-def chat(message: str, history: list[dict] | None = None) -> str:[m
+[32m+[m[32mdef chat(message: str, history: list[dict] | None = None) -> dict:[m
+     """[m
+     Send a message to Ollama and return AI response.[m
+     """[m
+[36m@@ -81,13 +82,21 @@[m [mdef chat(message: str, history: list[dict] | None = None) -> str:[m
+         "content": message[m
+     })[m
+ [m
+[32m+[m[32m    prompt_path = ROOT_DIR / "prompts" / "chat_system.txt"[m
+[32m+[m[32m    system_prompt = prompt_path.read_text(encoding="utf-8")[m
+[32m+[m
+[32m+[m[32m    # Add system prompt to the beginning[m
+[32m+[m[32m    messages.insert(0, {[m
+[32m+[m[32m        "role": "system",[m
+[32m+[m[32m        "content": system_prompt[m
+[32m+[m[32m    })[m
+[32m+[m
+     #gửi cho AI[m
+     payload = {[m
+         "model": model_name,[m
+         "messages": messages,[m
+[31m-[m
+[31m-        # Enable Thinking[m
+         "think": False,[m
+[32m+[m[32m        "format": "json",[m
+         "stream": False[m
+     }[m
+ [m
+[36m@@ -147,11 +156,74 @@[m [mdef chat(message: str, history: list[dict] | None = None) -> str:[m
+     # },[m
+     # "done": true[m
+     # }[m
+[32m+[m
+     #nhận kết quả[m
+     assistant_message = result.get([m
+         "message", {}[m
+     ).get("content")[m
+ [m
+[32m+[m[32m    # chuyển assistant_message thành json[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        output = json.loads(assistant_message)[m
+[32m+[m[32m    except json.JSONDecodeError as error:[m
+[32m+[m[32m        raise RuntimeError([m
+[32m+[m[32m            "Stheno returned invalid JSON!"[m
+[32m+[m[32m        ) from error[m
+[32m+[m
+[32m+[m[32m    # Kiểm tra Ollama có trả về content không[m
+[32m+[m[32m    if not isinstance(assistant_message, str) or not assistant_message.strip():[m
+[32m+[m
+[32m+[m[32m        print("\n========== RAW OLLAMA RESPONSE ==========")[m
+[32m+[m[32m        print(json.dumps([m
+[32m+[m[32m            result,[m
+[32m+[m[32m            ensure_ascii=False,[m
+[32m+[m[32m            indent=4[m
+[32m+[m[32m        ))[m
+[32m+[m[32m        print("=========================================")[m
+[32m+[m
+[32m+[m[32m        raise RuntimeError([m
+[32m+[m[32m            "Ollama returned an empty response!"[m
+[32m+[m[32m        )[m
+[32m+[m
+[32m+[m[32m    # Parse JSON[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        output = json.loads(assistant_message)[m
+[32m+[m
+[32m+[m[32m    except json.JSONDecodeError as error:[m
+[32m+[m
+[32m+[m[32m        print("\n========== INVALID JSON ==========")[m
+[32m+[m[32m        print(assistant_message)[m
+[32m+[m[32m        print("==================================")[m
+[32m+[m
+[32m+[m[32m        raise RuntimeError([m
+[32m+[m[32m            "Stheno returned invalid JSON!"[m
+[32m+[m[32m        ) from error[m
+[32m+[m
+[32m+[m[32m    # Kiểm tra JSON structure[m
+[32m+[m[32m    if not isinstance(output, dict):[m
+[32m+[m[32m        raise RuntimeError("Invalid JSON structure!")[m
+[32m+[m
+[32m+[m[32m    response_content = output.get("content")[m
+[32m+[m[32m    memories = output.get("memories")[m
+[32m+[m
+[32m+[m[32m    # Debug nếu thiếu content[m
+[32m+[m[32m    if not isinstance(response_content, str) or not response_content.strip():[m
+[32m+[m
+[32m+[m[32m        print("\n========== INVALID STHENO OUTPUT ==========")[m
+[32m+[m[32m        print(json.dumps([m
+[32m+[m[32m            output,[m
+[32m+[m[32m            ensure_ascii=False,[m
+[32m+[m[32m            indent=4[m
+[32m+[m[32m        ))[m
+[32m+[m[32m        print("===========================================")[m
+[32m+[m
+[32m+[m[32m        raise RuntimeError([m
+[32m+[m[32m            "Stheno returned an empty content field!"[m
+[32m+[m[32m        )[m
+[32m+[m
+[32m+[m[32m    if not isinstance(memories, list):[m
+[32m+[m[32m        raise RuntimeError("Invalid memories format!")[m
+[32m+[m
+     # print("\n========== STHENO METRICS ==========")[m
+     # print("Done reason:", result.get("done_reason"))[m
+     # print("Prompt tokens:", result.get("prompt_eval_count"))[m
+[36m@@ -187,7 +259,10 @@[m [mdef chat(message: str, history: list[dict] | None = None) -> str:[m
+             "Ollama returned an empty response!"[m
+         )[m
+ [m
+[31m-    return assistant_message.strip()[m
+[32m+[m[32m    return {[m
+[32m+[m[32m        "content": response_content.strip(),[m
+[32m+[m[32m        "memories": memories[m
+[32m+[m[32m    }[m
+ [m
+ [m
+ if __name__ == "__main__":[m
+[1mdiff --git a/src/core/conversation.py b/src/core/conversation.py[m
+[1mindex 03c0f8a..38e2c4b 100644[m
+[1m--- a/src/core/conversation.py[m
+[1m+++ b/src/core/conversation.py[m
+[36m@@ -59,16 +59,40 @@[m [mclass Conversation:[m
+         print("History length:", len(self.messages))[m
+ [m
+         # Gửi history cho Ollama[m
+[31m-        response = chat([m
+[32m+[m[32m        result = chat([m
+             message,[m
+             self.messages[m
+         )[m
+ [m
+[32m+[m[32m        # Validate JSON response[m
+[32m+[m[32m        if not isinstance(result, dict):[m
+[32m+[m[32m            raise TypeError([m
+[32m+[m[32m                "Chat response must be a dictionary!"[m
+[32m+[m[32m            )[m
+[32m+[m
+[32m+[m[32m        assistant_content = result.get("content")[m
+[32m+[m[32m        memories = result.get("memories")[m
+[32m+[m
+[32m+[m[32m        if not isinstance(assistant_content, str):[m
+[32m+[m[32m            raise TypeError([m
+[32m+[m[32m                "Invalid assistant content!"[m
+[32m+[m[32m            )[m
+[32m+[m
+[32m+[m[32m        if not assistant_content.strip():[m
+[32m+[m[32m            raise ValueError([m
+[32m+[m[32m                "Assistant content cannot be empty!"[m
+[32m+[m[32m            )[m
+[32m+[m
+[32m+[m[32m        if not isinstance(memories, list):[m
+[32m+[m[32m            raise TypeError([m
+[32m+[m[32m                "Invalid memories format!"[m
+[32m+[m[32m            )[m
+[32m+[m
+         # Lưu cả user và assistant vào SQLite[m
+         self.repository.save_exchange([m
+             self.conversation_id,[m
+             message,[m
+[31m-            response[m
+[32m+[m[32m            assistant_content[m
+         )[m
+ [m
+         # Cập nhật RAM (gửi lại lịch sử cho waifu như cũ)[m
+[36m@@ -79,7 +103,7 @@[m [mclass Conversation:[m
+             },[m
+             {[m
+                 "role": "assistant",[m
+[31m-                "content": response[m
+[32m+[m[32m                "content": assistant_content[m
+             }[m
+         ])[m
+ [m
+[36m@@ -90,14 +114,18 @@[m [mclass Conversation:[m
+                 -self.max_messages:[m
+             ][m
+ [m
+[31m-        return response[m
+[32m+[m[32m        # Trả về cả content và memories[m
+[32m+[m[32m        return {[m
+[32m+[m[32m            "content": assistant_content.strip(),[m
+[32m+[m[32m            "memories": memories[m
+[32m+[m[32m        }[m
+ [m
+     # Bắt đầu cuộc trò chuyện mới[m
+     def reset(self, title: str):[m
+ [m
+         # tạo mới conversation_id[m
+         self.conversation_id = ([m
+[31m-            self.repository.create_conversation()[m
+[32m+[m[32m            self.repository.create_conversation(title)[m
+         )[m
+ [m
+         self.messages.clear()[m
+[1mdiff --git a/src/interface/cli.py b/src/interface/cli.py[m
+[1m

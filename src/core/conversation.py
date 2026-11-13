@@ -59,16 +59,40 @@ class Conversation:
         print("History length:", len(self.messages))
 
         # Gửi history cho Ollama
-        response = chat(
+        result = chat(
             message,
             self.messages
         )
+
+        # Validate JSON response
+        if not isinstance(result, dict):
+            raise TypeError(
+                "Chat response must be a dictionary!"
+            )
+
+        assistant_content = result.get("content")
+        memories = result.get("memories")
+
+        if not isinstance(assistant_content, str):
+            raise TypeError(
+                "Invalid assistant content!"
+            )
+
+        if not assistant_content.strip():
+            raise ValueError(
+                "Assistant content cannot be empty!"
+            )
+
+        if not isinstance(memories, list):
+            raise TypeError(
+                "Invalid memories format!"
+            )
 
         # Lưu cả user và assistant vào SQLite
         self.repository.save_exchange(
             self.conversation_id,
             message,
-            response
+            assistant_content
         )
 
         # Cập nhật RAM (gửi lại lịch sử cho waifu như cũ)
@@ -79,7 +103,7 @@ class Conversation:
             },
             {
                 "role": "assistant",
-                "content": response
+                "content": assistant_content
             }
         ])
 
@@ -90,14 +114,18 @@ class Conversation:
                 -self.max_messages:
             ]
 
-        return response
+        # Trả về cả content và memories
+        return {
+            "content": assistant_content.strip(),
+            "memories": memories
+        }
 
     # Bắt đầu cuộc trò chuyện mới
     def reset(self, title: str):
 
         # tạo mới conversation_id
         self.conversation_id = (
-            self.repository.create_conversation()
+            self.repository.create_conversation(title)
         )
 
         self.messages.clear()
