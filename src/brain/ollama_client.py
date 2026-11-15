@@ -20,7 +20,13 @@ def check_ollama():
     settings = load_settings()
 
     base_url = settings["ollama"]["base_url"].rstrip("/")
-    model_name = settings["ollama"]["model"]
+    model_names = {
+    settings["ollama"]["model"],
+    settings["ollama"].get(
+        "memory_model",
+        settings["ollama"]["model"]
+    )
+}
 
     url = f"{base_url}/api/tags"
 
@@ -45,71 +51,33 @@ def check_ollama():
 
     print("[OK] Ollama server is running!")
 
-    if model_name not in models:
-        print(f"[ERROR] Model not found: {model_name}")
-        print("Available models:")
+    # if model_name not in models:
+    #     print(f"[ERROR] Model not found: {model_name}")
+    #     print("Available models:")
 
-        for model in models:
-            print(f" - {model}")
+    #     for model in models:
+    #         print(f" - {model}")
 
-        return False
+    #     return False
+
+    # print(f"[OK] Model found: {model_name}")
+
+    for model_name in model_names:
+        if model_name not in models:
+            print(f"[ERROR] Model not found: {model_name}")
+            return False
 
     print(f"[OK] Model found: {model_name}")
 
     return True
 
-def chat(message: str, history: list[dict] | None = None) -> dict:
-    """
-    Send a message to Ollama and return AI response.
-    """
 
-    if not message.strip():
-        raise ValueError("Message cannot be empty!")
-
+def _send_request(payload: dict, timeout: int = 180) -> dict:
     settings = load_settings()
-
     base_url = settings["ollama"]["base_url"].rstrip("/")
-    model_name = settings["ollama"]["model"]
-
-    url = f"{base_url}/api/chat" #endpoint để giao tiếp
-
-    # Copy previous conversation history
-    messages = list(history or [])
-
-    # Add current user message
-    messages.append({
-        "role": "user",
-        "content": message
-    })
-
-    prompt_path = ROOT_DIR / "prompts" / "chat_system.txt"
-    system_prompt = prompt_path.read_text(encoding="utf-8")
-
-    # Add system prompt to the beginning
-    messages.insert(0, {
-        "role": "system",
-        "content": system_prompt
-    })
-
-    #gửi cho AI
-    payload = {
-        "model": model_name,
-        "messages": messages,
-        "think": False,
-        "format": "json",
-        "stream": False
-    }
-
-    # print("\n========== REQUEST DEBUG ==========")
-    # print(json.dumps(
-    #     payload["messages"],
-    #     ensure_ascii=False,
-    #     indent=2
-    # ))
-    # print("===================================\n")
 
     request = Request(
-        url,
+        f"{base_url}/api/chat",
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
@@ -119,16 +87,11 @@ def chat(message: str, history: list[dict] | None = None) -> dict:
     )
 
     try:
-        with urlopen(request, timeout=180) as response:
-            result = json.loads(
-                response.read().decode("utf-8")
-            )
+        with urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
 
     except HTTPError as error:
-        details = error.read().decode(
-            "utf-8", errors="replace"
-        )
-
+        details = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(
             f"Ollama HTTP Error {error.code}: {details}"
         ) from error
@@ -148,119 +111,144 @@ def chat(message: str, history: list[dict] | None = None) -> dict:
             "Ollama returned invalid JSON!"
         ) from error
 
-    # {
-    # "model": "stheno-waifu:latest",
-    # "message": {
-    #     "role": "assistant",
-    #     "content": "Chào anh! Em vẫn đang đợi anh đây..."
-    # },
-    # "done": true
-    # }
 
-    #nhận kết quả
-    assistant_message = result.get(
-        "message", {}
-    ).get("content")
+def _get_content(result: dict) -> str:
+    content = result.get("message", {}).get("content")
 
-    # chuyển assistant_message thành json
+    if not isinstance(content, str) or not content.strip():
+        raise RuntimeError("Ollama returned an empty response!")
+
+    return content.strip()
+
+
+def chat(message: str, history: list[dict] | None = None) -> str:
+    """
+    Send conversation history and get a normal text response.
+    """
+
+    if not message.strip():
+        raise ValueError("Message cannot be empty!")
+
+    settings = load_settings()
+
+    model_name = settings["ollama"]["model"]
+
+    messages = list(history or [])
+
+    messages.append({
+        "role": "user",
+        "content": message
+    })
+
+    prompt_path = ROOT_DIR / "prompts" / "memory_extractor.txt"
+    system_prompt = prompt_path.read_text(encoding="utf-8")
+
+    # messages.insert(0, {
+    #     "role": "system",
+    #     "content": system_prompt
+    # })
+
+    payload = {
+        "model": model_name,
+        "messages": messages,
+        "think": False,
+        "stream": False
+    }
+
+    result = _send_request(payload)
+
+    print("\n========== CHAT TOKEN USAGE ==========")
+    print("Input tokens:", result.get("prompt_eval_count", 0))
+    print("Output tokens:", result.get("eval_count", 0))
+    print("======================================")
+
+    return _get_content(result)
+
+
+def extract_memories(user_message: str) -> dict:
+    """
+    Extract memories from the latest user message only.
+    """
+
+    if not user_message.strip():
+        raise ValueError("Message cannot be empty!")
+
+    settings = load_settings()
+
+    model_name = settings["ollama"].get(
+        "memory_model",
+        settings["ollama"]["model"]
+    )
+
+    prompt_path = ROOT_DIR / "prompts" / "memory_extractor.txt"
+    system_prompt = prompt_path.read_text(encoding="utf-8")
+
+    messages = [
+        {
+            "role": "system",
+            "content": system_prompt
+        },
+        {
+            "role": "user",
+            "content": user_message
+        }
+    ]
+
+    payload = {
+        "model": model_name,
+        "messages": messages,
+        "think": False,
+        "format": "json",
+        "stream": False
+    }
+
+    result = _send_request(payload)
+    raw_content = _get_content(result)
+
     try:
-        output = json.loads(assistant_message)
+        output = json.loads(raw_content)
     except json.JSONDecodeError as error:
         raise RuntimeError(
-            "Stheno returned invalid JSON!"
+            f"Memory extractor returned invalid JSON: {raw_content}"
         ) from error
 
-    # Kiểm tra Ollama có trả về content không
-    if not isinstance(assistant_message, str) or not assistant_message.strip():
-
-        print("\n========== RAW OLLAMA RESPONSE ==========")
-        print(json.dumps(
-            result,
-            ensure_ascii=False,
-            indent=4
-        ))
-        print("=========================================")
-
-        raise RuntimeError(
-            "Ollama returned an empty response!"
-        )
-
-    # Parse JSON
-    try:
-        output = json.loads(assistant_message)
-
-    except json.JSONDecodeError as error:
-
-        print("\n========== INVALID JSON ==========")
-        print(assistant_message)
-        print("==================================")
-
-        raise RuntimeError(
-            "Stheno returned invalid JSON!"
-        ) from error
-
-    # Kiểm tra JSON structure
     if not isinstance(output, dict):
-        raise RuntimeError("Invalid JSON structure!")
+        raise RuntimeError("Invalid memory JSON structure!")
 
-    response_content = output.get("content")
     memories = output.get("memories")
-
-    # Debug nếu thiếu content
-    if not isinstance(response_content, str) or not response_content.strip():
-
-        print("\n========== INVALID STHENO OUTPUT ==========")
-        print(json.dumps(
-            output,
-            ensure_ascii=False,
-            indent=4
-        ))
-        print("===========================================")
-
-        raise RuntimeError(
-            "Stheno returned an empty content field!"
-        )
 
     if not isinstance(memories, list):
         raise RuntimeError("Invalid memories format!")
 
-    # print("\n========== STHENO METRICS ==========")
-    # print("Done reason:", result.get("done_reason"))
-    # print("Prompt tokens:", result.get("prompt_eval_count"))
-    # print("Generated tokens:", result.get("eval_count"))
-    # print("Thinking chars:", len(result.get("thinking") or ""))
-    # print("Content chars:", len(result.get("content") or ""))
-    # print("====================================\n")
+    # Validate each memory
+    for index, memory in enumerate(memories):
 
-    # print("\n========== OLLAMA DEBUG ==========")
-    # print(json.dumps(result, indent=2, ensure_ascii=False))
-    # print("==================================\n")
+        if not isinstance(memory, dict):
+            raise RuntimeError(
+                f"Memory at index {index} must be a dictionary!"
+            )
 
-    prompt_tokens = result.get("prompt_eval_count", 0)
-    cached_tokens = result.get("prompt_eval_cached_count", 0)
-    generated_tokens = result.get("eval_count", 0)
+        category = memory.get("category")
+        content = memory.get("content")
+        importance = memory.get("importance")
 
-    total_tokens = prompt_tokens + generated_tokens
+        if not isinstance(category, str) or not category.strip():
+            raise RuntimeError(
+                f"Invalid category at memory index {index}!"
+            )
 
-    print("\n========== STHENO TOKEN USAGE ==========")
-    print(f"Input tokens:     {prompt_tokens}")
-    print(f"Cached tokens:    {cached_tokens}")
-    print(f"Output tokens:    {generated_tokens}")
-    print(f"Total tokens:     {total_tokens}")
-    print("========================================")
+        if not isinstance(content, str) or not content.strip():
+            raise RuntimeError(
+                f"Invalid content at memory index {index}!"
+            )
 
-    if not assistant_message:
-        
-        # print("\n========== OLLAMA DEBUG ==========")
-        # print(json.dumps(result, indent=2, ensure_ascii=False))
-        # print("==================================\n")
-
-        raise RuntimeError(
-            "Ollama returned an empty response!"
-        )
+        # bool is a subclass of int in Python, so check exact type
+        if type(importance) is not int or not 1 <= importance <= 5:
+            raise RuntimeError(
+                f"Invalid importance at memory index {index}!"
+            )
 
     return {
-        "content": response_content.strip(),
         "memories": memories
     }
 

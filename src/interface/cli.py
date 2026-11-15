@@ -3,6 +3,21 @@ from src.core.conversation import Conversation
 import json
 
 
+def display_memories(memories: list[dict]):
+    print("\n========== EXTRACTED MEMORIES ==========")
+
+    if not memories:
+        print("[INFO] Không có thông tin mới cần ghi nhớ.")
+    else:
+        for index, memory in enumerate(memories, start=1):
+            print(f"\nMemory #{index}")
+            print(f"  Category:   {memory['category']}")
+            print(f"  Content:    {memory['content']}")
+            print(f"  Importance: {memory['importance']}/5")
+
+    print("\n========================================")
+
+
 def main():
 
     conversation = Conversation(
@@ -32,11 +47,15 @@ def main():
                 break
 
             if command == "/reset":
-                title = input("\nNhập tên cuộc trò chuyện mới: ").strip()
+                title = input(
+                    "\nNhập tên cuộc trò chuyện mới: "
+                ).strip()
+
                 if not title:
                     title = "New conversation"
 
                 conversation.reset(title)
+
                 print(
                     "\n[OK] New conversation started!"
                     " Previous history preserved."
@@ -46,24 +65,19 @@ def main():
             try:
                 print("\nStheno đang suy nghĩ...")
 
-                 # In phản hồi của Stheno
                 response = conversation.send(message)
 
-                print(f"Stheno: {response['content']}")
+                # Display normal AI response
+                print("\n========== STHENO RESPONSE ==========")
+                print(f"\nStheno: {response['content']}")
+                print("=====================================")
 
-                 # In toàn bộ memories
-                print("\n========== EXTRACTED MEMORIES ==========")
-                print(json.dumps(
-                    response["memories"],
-                    ensure_ascii=False,
-                    indent=4
-                ))
-                print("========================================")
-
-                # đề dành lưu xuống database sau này
+                # Display extracted memories
                 memories = response["memories"]
 
-            except (RuntimeError, ValueError) as error:
+                display_memories(memories)
+
+            except (RuntimeError, ValueError, TypeError) as error:
                 print(f"\n[ERROR] {error}")
 
     except KeyboardInterrupt:

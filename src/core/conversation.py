@@ -1,5 +1,5 @@
 
-from src.brain.ollama_client import chat
+from src.brain.ollama_client import chat, extract_memories
 from src.memory.repository import ConversationRepository
 
 
@@ -47,55 +47,55 @@ class Conversation:
         )
 
     # Gửi tin nhắn
-    def send(self, message: str) -> str:
+    
+    def send(self, message: str) -> dict:
 
         if not message.strip():
-            raise ValueError(
-                "Message cannot be empty!"
-            )
+            raise ValueError("Message cannot be empty!")
 
-        print("[CONVERSATION DEBUG]")
+        print("\n[CONVERSATION DEBUG]")
         print("Conversation ID:", self.conversation_id)
         print("History length:", len(self.messages))
 
-        # Gửi history cho Ollama
-        result = chat(
+        # Request 1: Normal conversation
+        assistant_content = chat(
             message,
             self.messages
         )
 
-        # Validate JSON response
-        if not isinstance(result, dict):
-            raise TypeError(
-                "Chat response must be a dictionary!"
-            )
-
-        assistant_content = result.get("content")
-        memories = result.get("memories")
-
         if not isinstance(assistant_content, str):
-            raise TypeError(
-                "Invalid assistant content!"
-            )
+            raise TypeError("Invalid assistant content!")
 
         if not assistant_content.strip():
-            raise ValueError(
-                "Assistant content cannot be empty!"
+            raise ValueError("Assistant content cannot be empty!")
+
+        # Request 2: Memory extraction
+        memories = []
+
+        try:
+            memory_result = extract_memories(message)
+            memories = memory_result["memories"]
+
+            saved_count = self.repository.save_memories(
+                memories=memories,
+                source_conversation_id=self.conversation_id
             )
 
-        if not isinstance(memories, list):
-            raise TypeError(
-                "Invalid memories format!"
-            )
+            print(f"[MEMORY] Extracted: {len(memories)}")
+            print(f"[MEMORY] Saved: {saved_count}")
 
-        # Lưu cả user và assistant vào SQLite
+        except Exception as error:
+            # Memory extraction failure should not break chatting
+            print(f"[MEMORY ERROR] {error}")
+
+        # Save conversation
         self.repository.save_exchange(
             self.conversation_id,
             message,
             assistant_content
         )
 
-        # Cập nhật RAM (gửi lại lịch sử cho waifu như cũ)
+        # Update RAM history
         self.messages.extend([
             {
                 "role": "user",
@@ -107,18 +107,15 @@ class Conversation:
             }
         ])
 
-        # Giới hạn history gửi cho AI
+        # Limit conversation history
         if len(self.messages) > self.max_messages:
+            self.messages = self.messages[-self.max_messages:]
 
-            self.messages = self.messages[
-                -self.max_messages:
-            ]
-
-        # Trả về cả content và memories
         return {
             "content": assistant_content.strip(),
             "memories": memories
         }
+
 
     # Bắt đầu cuộc trò chuyện mới
     def reset(self, title: str):

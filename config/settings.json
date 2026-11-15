@@ -3,7 +3,8 @@
     "version": "0.1.0",
     "ollama": {
         "base_url": "http://127.0.0.1:11434",
-        "model": "stheno-qwen:latest"
+        "model": "stheno-qwen:latest",
+        "memory_model": "stheno-qwen:latest"
     },
     "memory": {
         "database": "data/stheno.db"
