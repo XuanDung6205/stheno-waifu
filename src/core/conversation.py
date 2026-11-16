@@ -1,14 +1,15 @@
 
 from src.brain.ollama_client import chat, extract_memories
-from src.memory.repository import ConversationRepository
-
+from src.memory.conversation_repository import ConversationRepository
+from src.memory.memory_repository import MemoryRepository
 
 class Conversation:
 
     def __init__(
         self,
         max_history_turns: int = 10,
-        repository=None
+        conversationRepository=None,
+        memoryRepository=None
     ):
 
         if max_history_turns < 1:
@@ -16,27 +17,31 @@ class Conversation:
                 "max_history_turns must be positive"
             )
 
-        self.repository = (
-            repository or ConversationRepository()
+        self.conversationRepository = (
+            conversationRepository or ConversationRepository()
+        )
+
+        self.memoryRepository = (
+            memoryRepository or MemoryRepository()
         )
 
         self.max_messages = max_history_turns * 2
 
         # Khôi phục cuộc trò chuyện gần nhất để thêm mess mới vào sau này
         self.conversation_id = (
-            self.repository.get_latest_conversation_id()
+            self.conversationRepository.get_latest_conversation_id()
         )
 
         # Chưa có cuộc trò chuyện nào
         if self.conversation_id is None:
 
             self.conversation_id = (
-                self.repository.create_conversation()
+                self.conversationRepository.create_conversation("New conversation")
             )
 
         # Load history từ 1 cuộc hội thoại đã tắt từ trước trong SQLite
         self.messages = (
-            self.repository.get_recent_messages(
+            self.conversationRepository.get_recent_messages(
                 self.conversation_id,
                 self.max_messages
             )
@@ -76,20 +81,24 @@ class Conversation:
             memory_result = extract_memories(message)
             memories = memory_result["memories"]
 
-            saved_count = self.repository.save_memories(
+            saved_count = self.memoryRepository.save_memories(
                 memories=memories,
                 source_conversation_id=self.conversation_id
             )
 
             print(f"[MEMORY] Extracted: {len(memories)}")
             print(f"[MEMORY] Saved: {saved_count}")
+            # print("DANH SÁCH MEMORY:")
+            # memories = self.memoryRepository.get_memories()
+            # for memory in memories:
+            #     print(memory)
 
         except Exception as error:
             # Memory extraction failure should not break chatting
             print(f"[MEMORY ERROR] {error}")
 
         # Save conversation
-        self.repository.save_exchange(
+        self.conversationRepository.save_exchange(
             self.conversation_id,
             message,
             assistant_content
@@ -122,7 +131,7 @@ class Conversation:
 
         # tạo mới conversation_id
         self.conversation_id = (
-            self.repository.create_conversation(title)
+            self.conversationRepository.create_conversation(title)
         )
 
         self.messages.clear()

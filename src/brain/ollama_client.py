@@ -21,12 +21,9 @@ def check_ollama():
 
     base_url = settings["ollama"]["base_url"].rstrip("/")
     model_names = {
-    settings["ollama"]["model"],
-    settings["ollama"].get(
-        "memory_model",
-        settings["ollama"]["model"]
-    )
-}
+        settings["ollama"]["chat"]["model"],
+        settings["ollama"]["memory"]["model"]
+    }
 
     url = f"{base_url}/api/tags"
 
@@ -131,7 +128,7 @@ def chat(message: str, history: list[dict] | None = None) -> str:
 
     settings = load_settings()
 
-    model_name = settings["ollama"]["model"]
+    model_name = settings["ollama"]["chat"]["model"]
 
     messages = list(history or [])
 
@@ -139,9 +136,6 @@ def chat(message: str, history: list[dict] | None = None) -> str:
         "role": "user",
         "content": message
     })
-
-    prompt_path = ROOT_DIR / "prompts" / "memory_extractor.txt"
-    system_prompt = prompt_path.read_text(encoding="utf-8")
 
     # messages.insert(0, {
     #     "role": "system",
@@ -175,10 +169,7 @@ def extract_memories(user_message: str) -> dict:
 
     settings = load_settings()
 
-    model_name = settings["ollama"].get(
-        "memory_model",
-        settings["ollama"]["model"]
-    )
+    model_name = settings["ollama"]["memory"]["model"]
 
     prompt_path = ROOT_DIR / "prompts" / "memory_extractor.txt"
     system_prompt = prompt_path.read_text(encoding="utf-8")

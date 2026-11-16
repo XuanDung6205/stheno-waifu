@@ -1,12 +1,21 @@
 {
     "app_name": "Stheno-waifu",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "ollama": {
         "base_url": "http://127.0.0.1:11434",
-        "model": "stheno-qwen:latest",
-        "memory_model": "stheno-qwen:latest"
+        "chat": {
+            "model": "stheno-qwen:latest",
+            "temperature": 0.8
+        },
+        "memory": {
+            "model": "stheno-qwen:latest",
+            "temperature": 0.1
+        }
     },
     "memory": {
-        "database": "data/stheno.db"
+        "database": "data/stheno.db",
+        "max_retrieved": 10,
+        "min_importance": 3,
+        "enable_deduplication": true
     }
 }
