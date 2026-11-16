@@ -243,6 +243,105 @@ def extract_memories(user_message: str) -> dict:
         "memories": memories
     }
 
+#AI Reranker
+#Hàm này chỉ trả về ID của những ký ức mà AI lựa chọn.
+def select_relevant_memory_ids(
+    user_message: str,
+    candidates: list[dict],
+    max_results: int = 5
+) -> list[int]:
+
+    if not user_message.strip():
+        return []
+
+    if not candidates:
+        return []
+
+    settings = load_settings()
+
+    model_name = settings["ollama"]["memory"]["model"]
+
+    prompt_path = ROOT_DIR / "prompts" / "memory_retriever.txt"
+
+    with open(prompt_path, "r", encoding="utf-8") as file:
+        system_prompt = file.read()
+
+    memory_data = [
+        {
+            "id": memory["id"],
+            "category": memory["category"],
+            "content": memory["content"],
+            "importance": memory["importance"]
+        }
+        for memory in candidates
+    ]
+
+    user_data = {
+        "user_message": user_message,
+        "max_results": max_results,
+        "candidates": memory_data
+    }
+
+    payload = {
+        "model": model_name,
+        "messages": [
+            {
+                "role": "system",
+                "content": system_prompt
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    user_data,
+                    ensure_ascii=False
+                )
+            }
+        ],
+        "stream": False,
+        "think": False,
+        "format": "json",
+        "options": {
+            "temperature": 0
+        }
+    }
+
+    result = _send_request(payload)
+
+    content = _get_content(result)
+
+    data = json.loads(content)
+
+    memory_ids = data.get("memory_ids")
+
+    if not isinstance(memory_ids, list):
+        raise ValueError("Invalid memory_ids format!")
+
+    allowed_ids = {
+        memory["id"] for memory in candidates
+    }
+
+    selected_ids = []
+    seen = set()
+
+    for memory_id in memory_ids:
+
+        if isinstance(memory_id, str) and memory_id.isdigit():
+            memory_id = int(memory_id)
+
+        if type(memory_id) is not int:
+            continue
+
+        if memory_id not in allowed_ids:
+            continue
+
+        if memory_id in seen:
+            continue
+
+        selected_ids.append(memory_id)
+        seen.add(memory_id)
+
+    return selected_ids[:max_results]
+
 
 if __name__ == "__main__":
     print("===== STHENO BRAIN CHECK =====")
