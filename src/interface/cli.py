@@ -12,6 +12,7 @@ def display_memories(memories: list[dict]):
         for index, memory in enumerate(memories, start=1):
             print(f"\nMemory #{index}")
             print(f"  Category:   {memory['category']}")
+            print(f"  Subject:    {memory['subject']}")
             print(f"  Content:    {memory['content']}")
             print(f"  Importance: {memory['importance']}/5")
 

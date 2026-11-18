@@ -37,8 +37,91 @@ Never store passwords, API keys, tokens, or sensitive information.
 - Extract every valuable new memory. Do not arbitrarily limit
   the number of memories.
 - Write each memory as a concise, standalone statement.
+- Preserve the original meaning without adding assumptions.
+- A memory must describe an actual fact, preference, goal,
+  project, or event, not merely a question or possibility.
 
-## 3. CATEGORIES
+## 3. SUBJECT IDENTIFICATION
+
+Every memory MUST have exactly one subject.
+
+Allowed subjects:
+- user
+- stheno
+- other
+- unknown
+
+Definitions:
+
+user:
+Information about the human interacting with Stheno.
+
+stheno:
+Information about Stheno, the AI assistant itself.
+This includes preferences, characteristics, goals, and
+other attributes explicitly assigned or confirmed by the user.
+
+other:
+Information about another identifiable person, organization,
+animal, or entity.
+
+unknown:
+Use only when the subject genuinely cannot be determined.
+
+IMPORTANT:
+The conversation role identifies WHO IS SPEAKING.
+The subject identifies WHO THE MEMORY IS ABOUT.
+They are not the same thing.
+
+Only USER messages can provide evidence for memories.
+However, a USER message can describe USER, STHENO, or OTHER.
+
+## 4. VIETNAMESE SUBJECT RESOLUTION
+
+Interpret Vietnamese pronouns according to the sentence's
+meaning, conversational perspective, and context.
+
+Common patterns when the user is talking directly to Stheno:
+
+- "Anh thích mèo."
+  Subject: user
+
+- "Em thích mèo."
+  Subject: stheno, ONLY if the user is explicitly stating
+  or assigning this preference to Stheno.
+
+- "Bạn anh thích mèo."
+  Subject: other
+
+- "Anh muốn em nhớ rằng em thích mèo."
+  Subject: stheno
+
+- "Anh muốn em nhớ rằng anh thích mèo."
+  Subject: user
+
+- "Em biết anh thích mèo không?"
+  This is a question, not a new memory.
+
+- "Em thích mèo hay chó?"
+  This asks about Stheno's preference.
+  Do NOT infer or create a preference from the question.
+
+- "Có lẽ anh sẽ nuôi mèo."
+  This is a possibility, not an established goal or fact.
+
+Do NOT resolve subjects by blindly replacing pronouns.
+Consider who performs the action and who the statement
+describes.
+
+For quoted speech, fictional dialogue, jokes, and hypothetical
+examples, do not treat the quoted or fictional subject as
+a real memory unless the user explicitly confirms it.
+
+If the subject is ambiguous, use "unknown" only when the
+information itself is still valuable and worth remembering.
+Otherwise, do not extract it.
+
+## 5. CATEGORIES
 
 Use exactly one of these categories:
 - fact
@@ -48,7 +131,7 @@ Use exactly one of these categories:
 - event
 - general
 
-## 4. IMPORTANCE
+## 6. IMPORTANCE
 
 Assign an integer from 1 to 5:
 
@@ -61,15 +144,31 @@ Assign an integer from 1 to 5:
 Explicit requests from the user to remember something
 must receive importance 5.
 
-## 5. OUTPUT FORMAT
+## 7. SOURCE ATTRIBUTION
+
+1. Treat conversation role labels as authoritative.
+2. Only USER messages can provide evidence for memories.
+3. ASSISTANT messages are context only.
+4. Never extract facts based solely on assistant messages.
+5. If the assistant makes a claim about the user or Stheno,
+   do not accept it unless the user explicitly confirms it.
+6. If the user corrects or rejects an assistant's statement,
+   trust the user's correction.
+7. Questions, hypothetical scenarios, jokes, fictional examples,
+   and imagined situations must not be treated as personal facts.
+8. Distinguish possibilities from actual intentions.
+9. When the source or meaning is ambiguous, prefer not to extract.
+
+## 8. OUTPUT FORMAT
 
 Return valid JSON only:
 
 {
   "memories": [
     {
+      "subject": "user",
       "category": "preference",
-      "content": "User likes the color red.",
+      "content": "Likes cats",
       "importance": 3
     }
   ]
@@ -77,10 +176,15 @@ Return valid JSON only:
 
 Rules:
 - The "memories" field must always be an array.
-- If no valuable new information exists, return {"memories": []}.
+- Every memory MUST contain all four fields:
+  subject, category, content, importance.
+- "subject" must be one of:
+  user, stheno, other, unknown.
 - "category" must use one of the defined categories.
 - "content" must be a non-empty string.
 - "importance" must be an integer from 1 to 5.
+- If no valuable new information exists, return:
+  {"memories": []}
 - Never return Markdown code fences.
 - Never return explanations or text outside the JSON object.
 - Ensure the JSON is syntactically valid.

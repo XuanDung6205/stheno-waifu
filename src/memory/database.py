@@ -23,6 +23,7 @@ class Database:
         )
 
         self.initialize()
+        self.migrate()
 
     @contextmanager
     def connect(self):
@@ -130,6 +131,31 @@ class Database:
                 );
 
             """)
+
+    def migrate(self):
+        with self.connect() as conn:
+
+            columns = {
+                row["name"]
+                for row in conn.execute(
+                    "PRAGMA table_info(memories)"
+                ).fetchall()
+            }
+
+            if "subject" not in columns:
+                conn.execute("""
+                    ALTER TABLE memories
+                    ADD COLUMN subject TEXT NOT NULL
+                    DEFAULT 'user'
+                    CHECK(subject IN (
+                        'user',
+                        'stheno',
+                        'other',
+                        'unknown'
+                    ))
+                """)
+
+                print("[MIGRATION] Added memories.subject")
 
 
 if __name__ == "__main__":

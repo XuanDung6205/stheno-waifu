@@ -2,6 +2,7 @@
 from src.brain.ollama_client import chat, extract_memories
 from src.memory.conversation_repository import ConversationRepository
 from src.memory.memory_repository import MemoryRepository
+from src.memory.memory_retriever import MemoryRetriever
 
 class Conversation:
 
@@ -9,7 +10,8 @@ class Conversation:
         self,
         max_history_turns: int = 10,
         conversationRepository=None,
-        memoryRepository=None
+        memoryRepository=None,
+        Memory_Retriever=None
     ):
 
         if max_history_turns < 1:
@@ -21,9 +23,13 @@ class Conversation:
             conversationRepository or ConversationRepository()
         )
 
-        self.memoryRepository = (
-            memoryRepository or MemoryRepository()
+        self.MemoryRetriever = (
+            Memory_Retriever or MemoryRetriever()
         )
+
+        self.memoryRepository = (
+                    memoryRepository or MemoryRepository()
+                )
 
         self.max_messages = max_history_turns * 2
 
@@ -62,10 +68,31 @@ class Conversation:
         print("Conversation ID:", self.conversation_id)
         print("History length:", len(self.messages))
 
+        # lấy memories liên quan dựa vào mess hiện tại và lịch sử mess trong hội thoại này trước đó
+        memory_list_from_pass = self.MemoryRetriever.retrieve(
+            query=message,
+            history=self.messages
+        )
+
+        # Debug retrieved memories
+        print("\n========== RETRIEVED MEMORIES ==========")
+        if memory_list_from_pass:
+            for index, memory in enumerate(memory_list_from_pass, start=1):
+                print(f"\n[{index}] Memory ID: {memory.get('id', 'N/A')}")
+                print(f"    Category:    {memory.get('category', 'N/A')}")
+                print(f"    Subject:    {memory['subject']}")
+                print(f"    Importance:  {memory.get('importance', 'N/A')}")
+                print(f"    Content:     {memory.get('content', 'N/A')}")
+        else:
+            print("No relevant memories found.")
+        print("========================================\n")
+
+
         # Request 1: Normal conversation
         assistant_content = chat(
-            message,
-            self.messages
+            message=message,
+            history=self.messages,
+            memories=memory_list_from_pass
         )
 
         if not isinstance(assistant_content, str):

@@ -65,62 +65,71 @@ class MemoryRetriever:
         return len(query_tokens & memory_tokens)
 
     # Retrieve relevant memories
-    def retrieve(self, query: str) -> list[dict]:
+    def retrieve(
+        self,
+        query: str,
+        history: list[dict] | None = None
+    ) -> list[dict]:
 
         if not isinstance(query, str) or not query.strip():
             return []
+
+        # Lịch sử chỉ dùng để cung cấp ngữ cảnh
+        history = history or []
 
         memories = self.repository.get_memories()
 
         if not memories:
             return []
 
-        # Step 1: Keyword Search
+        # Sắp xếp ứng viên theo mức độ trùng từ khóa
         ranked_memories = sorted(
             memories,
             key=lambda memory: (
                 self._keyword_score(query, memory),
                 memory.get("importance", 1),
-                memory.get("id", 0)
             ),
             reverse=True
         )
 
-        # Step 2: Build candidate pool
-        candidates = ranked_memories[:self.max_candidates]
+        # Chỉ gửi tối đa 20 ứng viên cho AI đánh giá
+        candidates = ranked_memories[:20]
 
-        # Step 3: AI Reranking
         try:
-
             selected_ids = select_relevant_memory_ids(
                 user_message=query,
+                history=history,
                 candidates=candidates,
                 max_results=self.max_results
             )
 
+            if not selected_ids:
+                return []
+
+            # Chỉ chấp nhận ID thực sự tồn tại trong tập ứng viên
             memory_map = {
                 memory["id"]: memory
                 for memory in candidates
             }
 
-            selected_memories = [
-                memory_map[memory_id]
-                for memory_id in selected_ids
-                if memory_id in memory_map
-            ]
+            selected_memories = []
 
-            if selected_memories:
-                return selected_memories
+            for memory_id in selected_ids:
+                if memory_id not in memory_map:
+                    continue
+
+                memory = memory_map[memory_id]
+
+                if memory not in selected_memories:
+                    selected_memories.append(memory)
+
+                if len(selected_memories) >= self.max_results:
+                    break
+
+            return selected_memories
 
         except Exception as error:
+            print(f"[MEMORY RETRIEVER ERROR] {error}")
 
-            print(
-                f"[MEMORY RETRIEVER ERROR] {error}"
-            )
-
-        # Step 4: Keyword fallback
-        return [
-            memory
-            for memory in ranked_memories
-            if self._keyword_score(query, memory) > 0
-        ][:self.max_results]
+            # Không đưa memory không chắc chắn vào AI.
+            return []
