@@ -101,24 +101,25 @@ class MemoryRepository:
 
 
     
-    def get_memories(self) -> list[dict]:
-
+    def get_memories(self, subject: str | None = None) -> list[dict]:
         with self.database.connect() as conn:
 
-            rows = conn.execute(
-                """
-                SELECT
-                    id,
-                    subject,
-                    category,
-                    content,
-                    importance,
-                    source_conversation_id,
-                    created_at,
-                    updated_at
-                FROM memories
-                ORDER BY importance DESC, id DESC
-                """
-            ).fetchall()
+            if subject is not None:
+                rows = conn.execute(
+                    """SELECT id, subject, category, content, importance,
+                            source_conversation_id, created_at, updated_at
+                    FROM memories
+                    WHERE subject = ?
+                    ORDER BY importance DESC, id DESC""",
+                    (subject,)
+                ).fetchall()
+
+            else:
+                rows = conn.execute(
+                    """SELECT id, subject, category, content, importance,
+                            source_conversation_id, created_at, updated_at
+                    FROM memories
+                    ORDER BY importance DESC, id DESC"""
+                ).fetchall()
 
             return [dict(row) for row in rows]

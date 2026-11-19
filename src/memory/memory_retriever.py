@@ -2,6 +2,7 @@ import re
 
 from src.brain.ollama_client import select_relevant_memory_ids
 from src.memory.memory_repository import MemoryRepository
+from src.memory.subject import SubjectResolver
 
 
 class MemoryRetriever:
@@ -18,7 +19,8 @@ class MemoryRetriever:
         self,
         repository=None,
         max_results: int = 5,
-        max_candidates: int = 60
+        max_candidates: int = 60,
+        subject=None
     ):
 
         if max_results < 1:
@@ -28,6 +30,7 @@ class MemoryRetriever:
             raise ValueError("max_candidates must be positive!")
 
         self.repository = repository or MemoryRepository()
+        self.subject = subject or SubjectResolver()
 
         self.max_results = max_results
         self.max_candidates = max_candidates
@@ -77,12 +80,22 @@ class MemoryRetriever:
         # Lịch sử chỉ dùng để cung cấp ngữ cảnh
         history = history or []
 
-        memories = self.repository.get_memories()
+        # Resolve subject
+        subject_result = self.subject.resolve(query, history)
+        subject_id = subject_result["subject_id"]
+
+        # Lấy memories theo subject
+        if subject_id in {"user", "stheno", "other"}:
+            memories = self.repository.get_memories(
+                subject=subject_id
+            )
+        else:
+            memories = self.repository.get_memories()
 
         if not memories:
             return []
 
-        # Sắp xếp ứng viên theo mức độ trùng từ khóa
+        # Sắp xếp ứng viên theo mức độ trùng từ khóa (keyword)
         ranked_memories = sorted(
             memories,
             key=lambda memory: (

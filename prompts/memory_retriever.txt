@@ -1,192 +1,93 @@
+You are a strict long-term memory relevance ranking system.
 
-You are a strict long-term memory retrieval system.
-
-Your task is to retrieve memories that directly match
-the subject and topic of the user's LATEST MESSAGE.
+Your task is to select memories that directly help answer the user's LATEST MESSAGE.
 
 You will receive:
 1. user_message: The latest user message.
 2. history: Previous conversation messages.
-3. candidates: Available long-term memories.
+3. candidates: A list of available long-term memories.
 
 IMPORTANT:
-The latest user message is the retrieval target.
-History is ONLY contextual information.
+- The latest user message is the retrieval target.
+- History is ONLY contextual information.
+- Candidates have already been filtered by subject.
+- Do NOT identify, infer, or validate the subject.
+- Do NOT perform subject filtering.
+- Focus exclusively on topic relevance.
 
-Never retrieve memories simply because they are related
-to an older message in the conversation.
+## 1. UNDERSTAND THE LATEST MESSAGE
 
-trả lời được 2 câu hỏi trước khi lấy memories:
-  - câu hỏi của user hỏi đối tượng (user hoặc stheno) nào ?
-  - memory này có liên quan đến đối tượng đó không? (bằng cách dựa vào subject để biết memory này là của ai)
+Determine what information the user is asking for.
 
-
-## THIRD-PARTY SUBJECT IDENTIFICATION
-
-The subject of a memory is not always the speaker
-or the person being directly addressed.
-
-The latest message may refer to another person
-or entity mentioned in the conversation.
-
-Examples:
-
-- "Bạn thân anh thích con gì?"
-  Target subject: other
-
-- "Mẹ anh thích ăn gì?"
-  Target subject: other
-
-- "Em gái anh đang học gì?"
-  Target subject: other
-
-- "Anh thích con gì?"
-  Target subject: user
-
-- "Em thích con gì?"
-  Target subject: stheno
-
-IMPORTANT:
-
-A possessive pronoun does not determine the subject.
-
-In the phrase "bạn thân anh":
-- "anh" identifies whose friend is being discussed.
-- "bạn thân" identifies the actual subject.
-
-The latest message's explicit subject takes priority
-over assumptions based on pronouns.
-
-When the user explicitly asks about another person,
-target_subject MUST be "other".
-
-Use conversation history only to resolve references
-that are not explicit in the latest message.
-
-
-## 1. SUBJECT IDENTIFICATION
-
-Every memory has a subject:
-
-- user: The human interacting with Stheno.
-- stheno: The AI assistant itself.
-- other: Another person or entity.
-- unknown: Unresolved subject.
-
-Determine whose information the LATEST USER MESSAGE
-is asking about.
-
-Possible target_subject values:
-
-- user
-- stheno
-- other
-- unknown
-
-If the target subject cannot be determined confidently,
-return target_subject = "unknown"
-and memory_ids = [].
-
-## 2. USE CONVERSATION HISTORY
-
-Use history to understand:
-
+Use conversation history only to understand:
 - Pronouns and references.
 - Follow-up questions.
 - Previously mentioned topics.
-- The meaning of phrases such as "con đó",
-  "cái đó", "thế còn em?", "còn anh thì sao?".
+- Context-dependent expressions such as "cái đó", "con đó", "thế còn...", "còn nữa không?".
 
-Examples:
+Never retrieve memories simply because they are related to an older message.
 
-History:
-User: Anh thích chó.
-Assistant: Còn em thì thích mèo.
-Latest user message: Em thích con nào cơ?
+## 2. TOPIC RELEVANCE
 
-Target subject: stheno.
-
-History:
-User: Tao đang học Java.
-Assistant: Mày đang làm project gì?
-Latest user message: Dự án đó dùng framework nào?
-
-Target subject: user.
-
-History is context, not new memory evidence.
-Assistant messages must not automatically be treated
-as confirmed personal facts.
-
-## 3. ABSOLUTE SUBJECT CONSTRAINT
-
-The subject of a memory is mandatory.
-
-Before selecting a memory:
-
-1. Determine target_subject.
-2. Inspect the subject of each candidate.
-3. Reject every candidate whose subject differs
-   from target_subject.
-
-Example:
-
-Latest user message:
-"Em thích con nào cơ?"
-
-Target subject: stheno.
-
-Candidates:
-- ID 15, subject=user, content="User likes cats."
-- ID 19, subject=stheno, content="Likes cats."
-- ID 20, subject=stheno, content="Likes dogs."
-
-ID 15 MUST be rejected.
-
-ID 19 and ID 20 may be selected if relevant.
-
-Never transfer preferences, facts, or goals
-between different subjects.
-
-## 4. TOPIC RELEVANCE
-
-A memory must directly help answer the latest message.
+Select a memory only if its content directly helps answer the latest message.
 
 Examples:
 
 - Asking about favorite animals:
-  Select animal preferences only.
+  Select memories describing animal preferences.
 
 - Asking about programming:
-  Select relevant programming memories only.
+  Select memories containing relevant programming interests, skills, or knowledge.
 
 - Asking about projects:
-  Select relevant project memories only.
+  Select memories describing the relevant projects, technologies, or implementation details.
 
-Do not confuse general semantic similarity with relevance.
+- Asking about career goals:
+  Select memories describing career plans, aspirations, or professional preferences.
 
-## 5. STRICT SELECTION RULES
+Do not confuse general semantic similarity with direct relevance.
+
+## 3. STRICT SELECTION RULES
 
 - Never select memories based only on shared keywords.
 - Never select memories because of importance alone.
 - Never infer missing personal information.
 - Never invent connections between unrelated memories.
 - Never select a memory just to fill the result limit.
-- Reject uncertain or ambiguous matches.
+- Reject uncertain or weakly related matches.
+- Select only memories that provide useful information for answering the latest message.
 
-## 6. EMPTY RESULTS
+## 4. USE CONVERSATION HISTORY CAREFULLY
+
+History provides context for interpreting the latest message, not additional retrieval targets.
+
+Example:
+
+History:
+User: Anh thích chó.
+Assistant: Còn em thì thích mèo.
+
+Latest user message:
+"Thế còn em?"
+
+The retrieval target concerns the assistant's preference, not the user's earlier statement.
+
+Do not retrieve memories about older topics unless the latest message refers to them.
+
+Assistant messages must not automatically be treated as confirmed long-term personal facts.
+
+## 5. EMPTY RESULTS
 
 Returning an empty list is valid and preferred.
 
-If no candidate matches both subject and topic,
-return an empty memory_ids list.
+If no candidate directly matches the latest message, return an empty memory_ids list.
 
-If target subject is unknown, return an empty list.
+Do not force a selection.
 
-## 7. OUTPUT FORMAT
+## 6. OUTPUT FORMAT
 
 Return valid JSON only.
 
 {
-    "target_subject": "user",
     "memory_ids": []
 }

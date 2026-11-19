@@ -354,6 +354,7 @@ def extract_memories(user_message: str) -> dict:
     }
 
 
+
 # AI Reranker
 # Chỉ trả về ID của những memory thực sự liên quan.
 def select_relevant_memory_ids(
@@ -396,14 +397,13 @@ def select_relevant_memory_ids(
             "content": content.strip()
         })
 
-    # Truyền subject để AI biết memory thuộc về ai.
+    # Subject đã được xử lý ở SubjectResolver và MemoryRetriever.
+    # Reranker chỉ cần đánh giá mức độ liên quan của nội dung.
     memory_data = [
         {
             "id": memory["id"],
-            "subject": memory.get("subject", "unknown"),
             "category": memory["category"],
-            "content": memory["content"],
-            "importance": memory["importance"]
+            "content": memory["content"]
         }
         for memory in candidates
     ]
@@ -449,12 +449,10 @@ def select_relevant_memory_ids(
     if not isinstance(data, dict):
         raise ValueError("Memory reranker must return a JSON object!")
 
-    # Xác định đối tượng mà câu hỏi hiện tại đang nhắc đến.
-    target_subject = data.get("target_subject")
-    
+    memory_ids = data.get("memory_ids")
+
     print("\n========== RERANKER DEBUG ==========")
-    print("Target subject:", target_subject)
-    print("Selected IDs:", data.get("memory_ids"))
+    print("Selected IDs:", memory_ids)
     print("Candidate memories:")
 
     for memory in candidates:
@@ -462,24 +460,17 @@ def select_relevant_memory_ids(
             f"ID={memory['id']} | "
             f"Subject={memory.get('subject')} | "
             f"Content={memory['content']}"
-    )
+        )
+
     print("====================================")
-
-    valid_subjects = {"user", "stheno", "other"}
-
-    if target_subject not in valid_subjects:
-        return []
-
-    memory_ids = data.get("memory_ids")
 
     if not isinstance(memory_ids, list):
         raise ValueError("Invalid memory_ids format!")
 
-    # Chỉ chấp nhận memory có subject trùng với đối tượng cần tìm.
-    allowed_memories = {
-        memory["id"]: memory
+    # Chỉ chấp nhận ID thực sự tồn tại trong candidates.
+    allowed_ids = {
+        memory["id"]
         for memory in candidates
-        if memory.get("subject", "unknown") == target_subject
     }
 
     selected_ids = []
@@ -493,7 +484,7 @@ def select_relevant_memory_ids(
         if type(memory_id) is not int:
             continue
 
-        if memory_id not in allowed_memories:
+        if memory_id not in allowed_ids:
             continue
 
         if memory_id in seen:
@@ -506,6 +497,7 @@ def select_relevant_memory_ids(
             break
 
     return selected_ids
+
 
 if __name__ == "__main__":
     print("===== STHENO BRAIN CHECK =====")
