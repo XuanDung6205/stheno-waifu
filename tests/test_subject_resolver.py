@@ -60,7 +60,7 @@ class SubjectResolverTests(TestCase):
         self.assertEqual(result["subject_id"], "unknown")
         self.assertEqual(send.call_count, 2)
 
-    def test_includes_history_only_for_ambiguous_references(self):
+    def test_includes_recent_history_as_context(self):
         history = [
             {"role": "user", "content": "Anh có một người bạn thân."},
             {"role": "assistant", "content": "Anh kể thêm về bạn ấy đi."},
@@ -76,4 +76,4 @@ class SubjectResolverTests(TestCase):
         )
 
         self.assertIn("Anh có một người bạn thân.", ambiguous)
-        self.assertNotIn("Anh có một người bạn thân.", explicit)
+        self.assertIn("Anh có một người bạn thân.", explicit)

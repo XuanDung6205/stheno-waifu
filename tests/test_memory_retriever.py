@@ -110,3 +110,27 @@ class MemoryRetrieverTests(TestCase):
         self.assertEqual(retriever.retrieve("   "), [])
         self.assertEqual(subject.calls, [])
         self.assertEqual(repository.requested_subjects, [])
+
+    def test_unknown_or_none_subject_does_not_send_memories_to_reranker(self):
+        for subject_id in ("unknown", "none"):
+            with self.subTest(subject_id=subject_id):
+                repository = FakeMemoryRepository([
+                    make_memory(1, "user"),
+                    make_memory(2, "stheno"),
+                    make_memory(3, "other"),
+                ])
+                retriever = MemoryRetriever(
+                    repository=repository,
+                    subject=FakeSubjectResolver(subject_id),
+                )
+
+                with patch(
+                    "src.memory.memory_retriever.select_relevant_memory_ids"
+                ) as select_ids:
+                    self.assertEqual(
+                        retriever.retrieve("Người đó thích gì?"),
+                        [],
+                    )
+
+                self.assertEqual(repository.requested_subjects, [])
+                select_ids.assert_not_called()

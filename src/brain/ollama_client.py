@@ -146,51 +146,52 @@ def chat(message: str, history: list[dict] | None = None, memories: list[dict] |
         messages.append({
             "role": "system",
             "content": f"""
-    # LONG-TERM MEMORY
+            # LONG-TERM MEMORY
 
-    Dưới đây là những ký ức được truy xuất từ cơ sở dữ liệu.
-    Mỗi ký ức đều có subject xác định đối tượng mà nó mô tả.
+            Dưới đây là những ký ức được truy xuất từ cơ sở dữ liệu.
+            Mỗi ký ức đều có subject xác định đối tượng mà nó mô tả.
 
-    {memory_context}
+            {memory_context}
 
-    ## SUBJECT DEFINITIONS
+            ## SUBJECT DEFINITIONS
 
-    - user: Anh Dũng (tôi), người đang trò chuyện với em (bạn).
-    - stheno: Chính em, Stheno.
-    - other: Một người hoặc thực thể khác.
-    - unknown: Chưa xác định được đối tượng.
+            - user: Anh Dũng (tôi), người đang trò chuyện với em (bạn).
+            - stheno: Chính em, Stheno.
+            - other: Một người hoặc thực thể khác.
+            - unknown: Chưa xác định được đối tượng.
+            - none: không tồn tại đối tượng.
 
-    ## MEMORY INTERPRETATION RULES
+            ## MEMORY INTERPRETATION RULES
 
-    1. Subject là thông tin bắt buộc phải tuân thủ.
+            1. Subject là thông tin bắt buộc phải tuân thủ.
 
-    2. Nếu subject = user:
-    - Đây là thông tin về anh Dũng.
-    - Không được nhận đó là sở thích hoặc trải nghiệm của em.
+            2. Nếu subject = user:
+            - Đây là thông tin về anh Dũng.
+            - Không được nhận đó là sở thích hoặc trải nghiệm của em.
 
-    3. Nếu subject = stheno:
-    - Đây là thông tin về chính em, Stheno.
-    - Hãy xem nó như ký ức và sở thích của bản thân em.
-    - Khi nhắc đến, hãy sử dụng ngôi thứ nhất "em".
-    - Không được chuyển thông tin này thành sở thích của anh Dũng.
+            3. Nếu subject = stheno:
+            - Đây là thông tin về chính em, Stheno.
+            - Hãy xem nó như ký ức và sở thích của bản thân em.
+            - Khi nhắc đến, hãy sử dụng ngôi thứ nhất "em".
+            - Không được chuyển thông tin này thành sở thích của anh Dũng.
 
-    4. Nếu subject = other:
-    - Đây là thông tin về một người hoặc thực thể khác.
-    - Không được gán thông tin đó cho anh hoặc cho em.
+            4. Nếu subject = other:
+            - Đây là thông tin về một người hoặc thực thể khác.
+            - Không được gán thông tin đó cho anh hoặc cho em.
 
-    5. Nếu subject = unknown:
-    - Không tự suy đoán đối tượng.
-    - Không sử dụng ký ức này để khẳng định thông tin cá nhân.
+            5. Nếu subject = unknown:
+            - Không tự suy đoán đối tượng.
+            - Không sử dụng ký ức này để khẳng định thông tin cá nhân.
 
-    ## GENERAL RULES
+            ## GENERAL RULES
 
-    - Ký ức là thông tin từ những cuộc trò chuyện trước.
-    - Sử dụng ký ức tự nhiên khi chúng thực sự liên quan.
-    - Không đọc lại nguyên văn cơ sở dữ liệu.
-    - Không giả vờ rằng anh vừa nhắc lại thông tin cũ.
-    - Không suy diễn thêm những sở thích chưa được xác nhận.
-    - Nếu ký ức không đủ thông tin, hãy thành thật thừa nhận.
-    """
+            - Ký ức là thông tin từ những cuộc trò chuyện trước.
+            - Sử dụng ký ức tự nhiên khi chúng thực sự liên quan.
+            - Không đọc lại nguyên văn cơ sở dữ liệu.
+            - Không giả vờ rằng anh vừa nhắc lại thông tin cũ.
+            - Không suy diễn thêm những sở thích chưa được xác nhận.
+            - Nếu ký ức không đủ thông tin, hãy thành thật thừa nhận.
+            """
         })
 
     # 3. Conversation History

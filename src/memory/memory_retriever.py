@@ -84,13 +84,10 @@ class MemoryRetriever:
         subject_result = self.subject.resolve(query, history)
         subject_id = subject_result["subject_id"]
 
-        # Lấy memories theo subject
-        if subject_id in {"user", "stheno", "other"}:
-            memories = self.repository.get_memories(
-                subject=subject_id
-            )
-        else:
-            memories = self.repository.get_memories()
+        if subject_id not in {"user", "stheno", "other"}:
+            return []
+
+        memories = self.repository.get_memories(subject=subject_id)
 
         if not memories:
             return []
