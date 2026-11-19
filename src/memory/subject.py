@@ -1,7 +1,6 @@
 
 import json
 from pathlib import Path
-import re
 
 from src.brain.ollama_client import (
     load_settings,
@@ -23,27 +22,6 @@ class SubjectResolver:
         "none"
     }
 
-    AMBIGUOUS_REFERENCE = re.compile(
-        r"\b(?:"
-        r"nó|"
-        r"người đó|"
-        r"cái đó|"
-        r"chuyện đó|"
-        r"việc đó|"
-        r"người ấy|"
-        r"cô ấy|"
-        r"anh ấy|"
-        r"chị ấy|"
-        r"bạn ấy|"
-        r"ổng|"
-        r"bả|"
-        r"cổ|"
-        r"hắn|"
-        r"họ"
-        r")\b",
-        re.IGNORECASE
-    )
-
     def __init__(self):
         self.settings = load_settings()
 
@@ -62,8 +40,8 @@ class SubjectResolver:
             encoding="utf-8"
         )
 
-    # Không phát hiện tham chiếu mơ hồ → history rỗng.
-    # Có tham chiếu mơ hồ → chỉ lấy 4 tin gần nhất, mỗi tin tối đa 200 ký tự.
+    # Luôn truyền 4 messages gần nhất.
+    # Bao gồm cả user và assistant.
     def _build_user_content(
         self,
         message: str,
@@ -72,14 +50,11 @@ class SubjectResolver:
 
         lines = []
 
-        # Chỉ lấy history khi current message có tham chiếu mơ hồ.
-        if self.AMBIGUOUS_REFERENCE.search(message):
+        for item in history_data[-4:]:
+            role = item["role"].upper()
+            content = item["content"][:200]
 
-            for item in history_data[-4:]:
-                role = item["role"].upper()
-                content = item["content"][:200]
-
-                lines.append(f"{role}: {content}")
+            lines.append(f"{role}: {content}")
 
         history_text = "\n".join(lines)
 
@@ -229,10 +204,10 @@ class SubjectResolver:
         if not isinstance(message, str) or not message.strip():
             raise ValueError("Message cannot be empty!")
 
-        # Chỉ lấy 10 tin nhắn gần nhất.
+        # Chuẩn hóa history.
         history_data = []
 
-        for item in (history or [])[-10:]:
+        for item in (history or []):
 
             if not isinstance(item, dict):
                 continue
@@ -251,26 +226,24 @@ class SubjectResolver:
                 "content": content.strip()
             })
 
+        # Luôn lấy 4 messages gần nhất.
+        recent_history = history_data[-4:]
+
+        user_content = self._build_user_content(
+            message=message,
+            history_data=recent_history
+        )
+
+        print("\n========== RESOLVER INPUT DEBUG ==========")
+        print(f"History messages: {len(recent_history)}")
+        print(user_content)
+        print("==========================================")
+
         last_error = None
 
         # Tối đa 2 lần inference.
+        # Retry vẫn giữ nguyên history.
         for attempt in range(2):
-
-            # Lần đầu dùng history.
-            # Lần hai thử lại với history rỗng.
-            data_for_try = (
-                history_data if attempt == 0 else []
-            )
-
-            user_content = self._build_user_content(
-                message=message,
-                history_data=data_for_try
-            )
-
-            print("\n========== RESOLVER INPUT DEBUG ==========")
-            print(f"Attempt: {attempt + 1}")
-            print(user_content)
-            print("==========================================")
 
             try:
                 return self._call_and_validate(

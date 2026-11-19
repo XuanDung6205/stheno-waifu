@@ -19,7 +19,7 @@ class MemoryRetriever:
         self,
         repository=None,
         max_results: int = 5,
-        max_candidates: int = 60,
+        max_candidates: int = 50,
         subject=None
     ):
 
@@ -105,8 +105,7 @@ class MemoryRetriever:
             reverse=True
         )
 
-        # Chỉ gửi tối đa 20 ứng viên cho AI đánh giá
-        candidates = ranked_memories[:20]
+        candidates = ranked_memories[:self.max_candidates]
 
         try:
             selected_ids = select_relevant_memory_ids(
