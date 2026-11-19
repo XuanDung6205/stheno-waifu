@@ -1,6 +1,7 @@
 
 import json
 from pathlib import Path
+import re
 
 from src.brain.ollama_client import (
     load_settings,
@@ -22,6 +23,27 @@ class SubjectResolver:
         "none"
     }
 
+    AMBIGUOUS_REFERENCE = re.compile(
+        r"\b(?:"
+        r"nó|"
+        r"người đó|"
+        r"cái đó|"
+        r"chuyện đó|"
+        r"việc đó|"
+        r"người ấy|"
+        r"cô ấy|"
+        r"anh ấy|"
+        r"chị ấy|"
+        r"bạn ấy|"
+        r"ổng|"
+        r"bả|"
+        r"cổ|"
+        r"hắn|"
+        r"họ"
+        r")\b",
+        re.IGNORECASE
+    )
+
     def __init__(self):
         self.settings = load_settings()
 
@@ -40,41 +62,41 @@ class SubjectResolver:
             encoding="utf-8"
         )
 
-    def resolve(
+    # Không phát hiện tham chiếu mơ hồ → history rỗng.
+    # Có tham chiếu mơ hồ → chỉ lấy 4 tin gần nhất, mỗi tin tối đa 200 ký tự.
+    def _build_user_content(
         self,
         message: str,
-        history: list[dict] | None = None
+        history_data: list[dict]
+    ) -> str:
+
+        lines = []
+
+        # Chỉ lấy history khi current message có tham chiếu mơ hồ.
+        if self.AMBIGUOUS_REFERENCE.search(message):
+
+            for item in history_data[-4:]:
+                role = item["role"].upper()
+                content = item["content"][:200]
+
+                lines.append(f"{role}: {content}")
+
+        history_text = "\n".join(lines)
+
+        return (
+            "<history>\n"
+            f"{history_text}\n"
+            "</history>\n\n"
+            "<current_message>\n"
+            f"{message.strip()}\n"
+            "</current_message>"
+        )
+
+    def _call_and_validate(
+        self,
+        user_content: str,
+        message: str
     ) -> dict:
-
-        if not isinstance(message, str) or not message.strip():
-            raise ValueError("Message cannot be empty!")
-
-        # Chỉ lấy 10 tin nhắn gần nhất.
-        history_data = []
-
-        for item in (history or [])[-10:]:
-
-            if not isinstance(item, dict):
-                continue
-
-            role = item.get("role")
-            content = item.get("content")
-
-            if role not in ("user", "assistant"):
-                continue
-
-            if not isinstance(content, str) or not content.strip():
-                continue
-
-            history_data.append({
-                "role": role,
-                "content": content.strip()
-            })
-
-        user_data = {
-            "current_message": message.strip(),
-            "conversation_history": history_data
-        }
 
         payload = {
             "model": self.model,
@@ -85,10 +107,7 @@ class SubjectResolver:
                 },
                 {
                     "role": "user",
-                    "content": json.dumps(
-                        user_data,
-                        ensure_ascii=False
-                    )
+                    "content": user_content
                 }
             ],
             "stream": False,
@@ -170,16 +189,111 @@ class SubjectResolver:
                 "Invalid reason!"
             )
 
+        # Validate quote
+        quote = output.get("quote")
+
+        if not isinstance(quote, str) or not quote.strip():
+            raise RuntimeError(
+                "Invalid quote!"
+            )
+
+        normalize = lambda s: " ".join(s.casefold().split())
+
+        if normalize(quote) not in normalize(message):
+            raise RuntimeError(
+                f"Quote not found in current message: {quote}"
+            )
+
         print("\n========== SUBJECT RESOLVER DEBUG ==========")
         print(f"Selected Subject : {subject_id}")
         print(f"Description      : {description}")
         print(f"Confidence       : {float(confidence):.2%}")
         print(f"Reason           : {reason.strip()}")
+        print(f"Quote            : {quote.strip()}")
         print("============================================")
 
         return {
             "subject_id": subject_id,
             "subject_description": description,
             "confidence": float(confidence),
-            "reason": reason.strip()
+            "reason": reason.strip(),
+            "quote": quote.strip()
+        }
+
+    def resolve(
+        self,
+        message: str,
+        history: list[dict] | None = None
+    ) -> dict:
+
+        if not isinstance(message, str) or not message.strip():
+            raise ValueError("Message cannot be empty!")
+
+        # Chỉ lấy 10 tin nhắn gần nhất.
+        history_data = []
+
+        for item in (history or [])[-10:]:
+
+            if not isinstance(item, dict):
+                continue
+
+            role = item.get("role")
+            content = item.get("content")
+
+            if role not in ("user", "assistant"):
+                continue
+
+            if not isinstance(content, str) or not content.strip():
+                continue
+
+            history_data.append({
+                "role": role,
+                "content": content.strip()
+            })
+
+        last_error = None
+
+        # Tối đa 2 lần inference.
+        for attempt in range(2):
+
+            # Lần đầu dùng history.
+            # Lần hai thử lại với history rỗng.
+            data_for_try = (
+                history_data if attempt == 0 else []
+            )
+
+            user_content = self._build_user_content(
+                message=message,
+                history_data=data_for_try
+            )
+
+            print("\n========== RESOLVER INPUT DEBUG ==========")
+            print(f"Attempt: {attempt + 1}")
+            print(user_content)
+            print("==========================================")
+
+            try:
+                return self._call_and_validate(
+                    user_content=user_content,
+                    message=message
+                )
+
+            except RuntimeError as error:
+                last_error = error
+
+                print(
+                    f"[RESOLVER] Attempt {attempt + 1} failed: {error}"
+                )
+
+        # Cả hai lần đều thất bại → fallback an toàn.
+        print(
+            "[RESOLVER] All attempts failed. Using fallback."
+        )
+
+        return {
+            "subject_id": "unknown",
+            "subject_description": "",
+            "confidence": 0.0,
+            "reason": f"Resolver failed: {last_error}",
+            "quote": ""
         }

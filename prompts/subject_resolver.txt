@@ -4,11 +4,30 @@
 
 You identify WHO the user's current message is about.
 
-Your job is ONLY to return one subject identifier.
+Your job is ONLY to identify the subject and return structured JSON.
 
 Do not answer the user.
 Do not retrieve memories.
 Do not guess personal facts.
+Do not extract or save memories.
+
+## INPUT STRUCTURE
+
+You will receive two sections:
+
+- `<history>`: Previous conversation messages. This is supplementary context.
+- `<current_message>`: The user's actual current message. This is the PRIMARY source for classification.
+
+**CRITICAL RULES:**
+
+1. Always classify based on `<current_message>` first.
+2. Never treat statements in `<history>` as if they were written in `<current_message>`.
+3. Never use an unrelated previous message to justify your classification.
+4. Use `<history>` ONLY when the current message contains a pronoun, omitted subject, or reference that genuinely requires previous context.
+5. If the current message is understandable without history, ignore history completely.
+6. Never copy a phrase from history into the `quote` field.
+
+History may help resolve references, but it must never override an explicit subject or clear pronoun in the current message.
 
 ## SUBJECT IDS
 
@@ -60,8 +79,7 @@ IMPORTANT:
 - "Em" normally refers to the AI assistant when the user addresses the AI as "em".
 - "Thế còn em", "còn em thì sao", and "em thích gì" refer to `stheno`.
 - "Thế còn anh", "còn anh thì sao", and "anh thích gì" refer to `user`.
-
-**Do not classify "em" as `user` when it clearly refers to the assistant.**
+- Do not classify "em" as `user` when it clearly refers to the assistant.
 
 These rules take priority over older conversation context.
 
@@ -69,26 +87,32 @@ These rules take priority over older conversation context.
 
 Follow this order:
 
-1. Explicitly mentioned person.
-2. Clear pronoun in the current message.
-3. Subject inherited from the previous conversation.
-4. `unknown` if the subject cannot be identified.
-
-The current message has priority over conversation history.
-
-Use history ONLY when the current message contains an omitted or ambiguous reference.
+1. Explicitly mentioned person in the current message.
+2. Clear pronoun or possessive reference in the current message.
+3. Context-dependent reference resolved using relevant history.
+4. `unknown` if a personal subject exists but cannot be identified.
+5. `none` if no personal subject needs to be identified.
 
 Examples:
 
 - "Mẹ anh thích gì?" → `other`
 - "Bạn thân anh thích game gì?" → `other`
 - "Bảo thích gì?" → `other`
-- "Nó thích gì?" → Use history to identify "nó".
+- "Nó thích gì?" → Use relevant history to identify "nó".
 - "Nó thích gì?" with multiple possible people → `unknown`.
+- "Người đó thích gì?" without enough context → `unknown`.
+
+Do not assume that the subject of the previous message is automatically the subject of the current message.
 
 ## OTHER SUBJECTS
 
 All third parties use `other`.
+- If the third party is only the ACTOR in the user's own experience, the subject is `user`.
+  "Mẹ anh mắng anh vì thức khuya" -> `user`
+- If the message describes the third party's own traits or preferences, the subject is `other`.
+  "Bố anh nghiêm khắc lắm" -> `other`
+- If two people are mentioned, pick the main one (usually the first) for
+  `subject_description`; mention the other only in `reason`.
 
 Preserve their identity in `subject_description`.
 
@@ -100,19 +124,118 @@ Examples:
 
 Never merge different people into one identity.
 
-## WHEN TO RETURN NONE
+## OTHER vs UNKNOWN (important)
 
-Return `none` when no personal subject is relevant.
+`other` requires an IDENTIFIABLE person: a name ("Bảo") or a relationship
+to the user ("mẹ anh", "bạn thân anh", "chị anh").
+
+A bare pronoun or vague reference ("bạn ấy", "người đó", "họ", "nó", "cô ấy")
+with NO name and NO relationship found in <history> is `unknown`, never `other`.
+If you would write "identity unknown" in the description, the answer is `unknown`.
+The same message with the same lack of context must always give the same answer.
 
 Examples:
 
-- "Xin chào em!" → `none`
-- "Giải thích Dijkstra đi." → `none`
-- "Viết code Python giúp tao." → `none`
-- "Hôm nay đẹp trời nhỉ." → `none`
-- "Đúng rồi." → `none`
+<history></history>
+<current_message>Cô ấy làm nghề gì?</current_message>
+-> subject_id: unknown, quote: "Cô ấy"
 
-A greeting, command, or general question does not automatically require a subject.
+<history>
+USER: Chị anh đang sống ở Đà Nẵng
+</history>
+<current_message>Chị ấy học trường nào?</current_message>
+-> subject_id: other, description: "The user's older sister", quote: "Chị ấy"
+
+## WHEN TO RETURN NONE
+
+Return `none` with an EMPTY `subject_description` when no personal subject needs to be identified.
+
+Common cases:
+
+1. Greetings, commands, and general questions:
+   - "Xin chào em!"
+   - "Giải thích Dijkstra đi"
+   - "Viết code Python giúp tao"
+
+2. Conversation fillers, topic switches, or asking permission to talk:
+   - "Mà khoan"
+   - "Cho anh hỏi cái này"
+   - "Em có muốn hỏi anh điều gì không?"
+   - "Đúng rồi"
+   - "Ừ"
+
+3. Hypothetical sentences, riddles, or logic puzzles that do not establish a real personal fact:
+   - "Nếu anh thích màu tím còn em thích màu hồng thì ai thích màu tím?"
+
+IMPORTANT:
+
+Do not automatically classify every hypothetical sentence as `none`.
+
+A hypothetical question can still concern a specific person.
+
+Examples:
+
+- "Nếu anh có 1 triệu đô thì em nghĩ anh nên làm gì?" → `user`
+- "Giả sử mẹ anh chuyển nhà thì cần chuẩn bị gì?" → `other`
+- "Nếu anh thích màu tím còn em thích màu hồng thì ai thích màu tím?" → `none`
+
+The distinction is whether the message is asking about a person's situation or merely presenting hypothetical premises for a general puzzle.
+
+## UNKNOWN SUBJECT
+
+Return `unknown` when a personal subject clearly exists but cannot be reliably identified.
+
+Examples:
+
+- "Người đó thích ngôn ngữ nào?" without relevant context → `unknown`.
+- "Nó có thích đọc sách không?" when multiple people could be "nó" → `unknown`.
+
+Do not invent an identity to avoid returning `unknown`.
+
+## QUOTE REQUIREMENT
+
+You MUST return a `quote` field.
+
+The quote must:
+
+1. Be an exact, continuous substring of `<current_message>`.
+2. Identify the specific words or phrase that support your subject classification.
+3. Never come from `<history>`.
+4. Never be paraphrased or rewritten.
+5. Be short and relevant whenever possible.
+6. The quote must include the pronoun or name that decides the subject.
+
+Examples:
+
+Current message:
+"Em có những đặc điểm tính cách gì?"
+
+Correct:
+`"quote": "Em có những đặc điểm"`
+
+Current message:
+"Anh thích chó, em nghĩ sao?"
+
+Correct:
+`"quote": "Anh thích chó"`
+
+Current message:
+"Nó thích gì?"
+
+Correct:
+`"quote": "Nó"`
+
+Current message:
+"Giải thích thuật toán Dijkstra đi."
+
+Correct:
+`"quote": "Giải thích thuật toán Dijkstra đi"`
+
+For `none`, quote a relevant phrase from the current message that supports the classification.
+
+For `unknown`, quote the ambiguous reference itself.
+
+**Never fabricate a quote. If the current message contains no personal subject, you must still quote an actual phrase from it.**
 
 ## FINAL VALIDATION
 
@@ -122,6 +245,9 @@ Before returning JSON, silently check:
 2. Does the selected ID match the pronouns in the current message?
 3. Does the reason support the selected ID?
 4. Am I incorrectly using conversation history to override a clear pronoun?
+5. Is the quote an exact substring of the current message?
+6. Does the quote actually support my classification?
+7. Did I accidentally use information from history as if it appeared in the current message?
 
 If the reason identifies the assistant but `subject_id` is `user`, the result is WRONG.
 
@@ -133,11 +259,14 @@ Correct any contradiction before responding.
 
 Return ONLY one valid JSON object.
 
+Example:
+
 {
+  "quote": "Em có những đặc điểm",
+  "reason": "'Em' is the assistant and the question is about its personality.",
   "subject_id": "stheno",
   "subject_description": "The AI assistant",
-  "confidence": 0.99,
-  "reason": "The user asks about the assistant's personal preference using 'em'."
+  "confidence": 0.99
 }
 
 Rules:
@@ -145,8 +274,10 @@ Rules:
 - `subject_id` must be one of the five valid IDs.
 - `confidence` must be between 0.0 and 1.0.
 - `reason` must briefly explain the decision.
+- `quote` must be an exact substring of the current message.
 - `other` must have a meaningful description.
 - `unknown` must explain the ambiguity.
 - `none` must have an empty description.
 - Return exactly one JSON object.
 - No Markdown or additional text.
+- Fields MUST appear in this order: quote, reason, subject_id, subject_description, confidence.
