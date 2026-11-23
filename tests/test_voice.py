@@ -1,5 +1,5 @@
 
-from src.voice.stheno_voice import SthenoVoice
+from src.voice.clit import SthenoVoice
 
 voice = SthenoVoice()
 

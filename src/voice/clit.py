@@ -20,11 +20,26 @@ import time
 import uuid
 from pathlib import Path
 from typing import Optional
+import sys
+from .voice_config import GENERATION
+# from .cached_infer import main as cached_infer
 
 
 # =========================================================
 # CONFIGURATION
 # =========================================================
+VOICE_DIR = Path(__file__).parent
+
+OMNIVOICE_PYTHON = Path(
+    r"D:\AI\Stheno\OmniVoice\.venv\Scripts\python.exe"
+)
+
+CACHED_INFER_SCRIPT = VOICE_DIR / "cached_infer.py"
+
+VOICE_PROFILE = (
+    VOICE_DIR / "voice_profiles" / "stheno_voice.pt"
+)
+
 
 OMNIVOICE_EXE = Path(
     r"D:\AI\Stheno\OmniVoice\.venv\Scripts\omnivoice-infer.exe"
@@ -39,8 +54,8 @@ VLC_PATHS = [
     Path(r"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe"),
 ]
 
-DEFAULT_LANGUAGE = "Vietnamese"
-DEFAULT_SPEED = 1.0
+# DEFAULT_LANGUAGE = "Vietnamese"
+# DEFAULT_SPEED = 1.0
 
 
 # =========================================================
@@ -49,29 +64,17 @@ DEFAULT_SPEED = 1.0
 
 class SthenoVoice:
 
-    def __init__(
-        self,
-        executable: Path = OMNIVOICE_EXE,
-        output_dir: Path = OUTPUT_DIR,
-        language: str = DEFAULT_LANGUAGE,
-        speed: float = DEFAULT_SPEED,
-        ref_audio: Optional[str] = None,
-        ref_text: Optional[str] = None,
-        instruct: Optional[str] = None,
-    ):
-
-        self.executable = Path(executable)
-        self.output_dir = Path(output_dir)
-
-        self.language = language
-        self.speed = speed
-
-        # Voice cloning reference
-        self.ref_audio = ref_audio
-        self.ref_text = ref_text
-
-        # Voice design instruction
-        self.instruct = instruct
+    def __init__(self):
+        self.speed = GENERATION.speed
+        self.instruct = GENERATION.instruct
+        self.duration = GENERATION.duration
+        self.inference_steps = GENERATION.inference_steps
+        self.denoise = GENERATION.denoise
+        self.guidance_scale = GENERATION.guidance_scale
+        self.preprocess_prompt = GENERATION.preprocess_prompt
+        self.postprocess_output = GENERATION.postprocess_output
+        self.language = GENERATION.default_language
+        self.output_dir = OUTPUT_DIR
 
         # Process management
         self._player: Optional[subprocess.Popen] = None
@@ -90,20 +93,32 @@ class SthenoVoice:
 
     def initialize(self) -> bool:
 
-        if not self.executable.is_file():
+        if not OMNIVOICE_PYTHON.is_file():
             raise FileNotFoundError(
-                f"Không tìm thấy OmniVoice executable:\n"
-                f"{self.executable}"
+                f"Không tìm thấy OmniVoice Python:\n"
+                f"{OMNIVOICE_PYTHON}"
             )
 
-        if not self.output_dir.exists():
-            self.output_dir.mkdir(
-                parents=True,
-                exist_ok=True
+        if not CACHED_INFER_SCRIPT.is_file():
+            raise FileNotFoundError(
+                f"Không tìm thấy cached inference script:\n"
+                f"{CACHED_INFER_SCRIPT}"
             )
 
-        print("[SthenoVoice] Voice engine initialized.")
-        print(f"[SthenoVoice] Engine: {self.executable}")
+        if not VOICE_PROFILE.is_file():
+            raise FileNotFoundError(
+                f"Không tìm thấy voice profile:\n"
+                f"{VOICE_PROFILE}"
+            )
+
+        self.output_dir.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        print("[SthenoVoice] Cached voice engine initialized.")
+        print(f"[SthenoVoice] Python: {OMNIVOICE_PYTHON}")
+        print(f"[SthenoVoice] Profile: {VOICE_PROFILE}")
         print(f"[SthenoVoice] Output: {self.output_dir}")
 
         return True
@@ -200,22 +215,29 @@ class SthenoVoice:
     # TEXT TO SPEECH
     # =====================================================
 
+    
     def generate(self, text: str) -> Path:
 
         text = text.strip()
 
         if not text:
-            raise ValueError(
-                "Không thể tạo audio từ text rỗng."
-            )
+            raise ValueError("Không thể tạo audio từ text rỗng.")
 
-        if not self.executable.is_file():
+        if not OMNIVOICE_PYTHON.is_file():
             raise FileNotFoundError(
-                f"Không tìm thấy OmniVoice:\n"
-                f"{self.executable}"
+                f"Không tìm thấy Python:\n{OMNIVOICE_PYTHON}"
             )
 
-        # UUID tránh trùng tên file
+        if not CACHED_INFER_SCRIPT.is_file():
+            raise FileNotFoundError(
+                f"Không tìm thấy cached_infer.py:\n{CACHED_INFER_SCRIPT}"
+            )
+
+        if not VOICE_PROFILE.is_file():
+            raise FileNotFoundError(
+                f"Không tìm thấy voice profile:\n{VOICE_PROFILE}"
+            )
+
         filename = (
             f"stheno_{time.strftime('%Y%m%d_%H%M%S')}_"
             f"{uuid.uuid4().hex[:8]}.wav"
@@ -224,49 +246,29 @@ class SthenoVoice:
         output = self.output_dir / filename
 
         command = [
-            str(self.executable),
+            str(OMNIVOICE_PYTHON),
+            str(CACHED_INFER_SCRIPT),
             "--text", text,
             "--output", str(output),
-            "--language", self.language,
             "--speed", str(self.speed),
         ]
 
-        # Voice cloning reference
-        if self.ref_audio:
-
-            if not Path(self.ref_audio).is_file():
-                raise FileNotFoundError(
-                    f"Voice reference không tồn tại:\n"
-                    f"{self.ref_audio}"
-                )
-
-            command.extend([
-                "--ref_audio", self.ref_audio
-            ])
-
-            if self.ref_text:
-                command.extend([
-                    "--ref_text", self.ref_text
-                ])
-
-        # Voice design instruction
         if self.instruct:
             command.extend([
                 "--instruct", self.instruct
             ])
 
-        print("[SthenoVoice] Generating audio...")
+        print("[SthenoVoice] Generating with cached voice profile...")
 
         with self._lock:
 
             self._inference = subprocess.Popen(
                 command,
-                cwd=str(self.executable.parent),
+                cwd=str(OMNIVOICE_PYTHON.parent.parent.parent),
             )
 
             process = self._inference
 
-        # Chờ inference hoàn tất
         return_code = process.wait()
 
         with self._lock:
@@ -276,7 +278,7 @@ class SthenoVoice:
 
         if return_code != 0:
             raise RuntimeError(
-                f"OmniVoice failed with exit code {return_code}"
+                f"Cached OmniVoice failed with exit code {return_code}"
             )
 
         if not output.is_file():
@@ -285,13 +287,12 @@ class SthenoVoice:
             )
 
         if output.stat().st_size == 0:
-            raise RuntimeError(
-                "File WAV rỗng."
-            )
+            raise RuntimeError("File WAV rỗng.")
 
         print(f"[SthenoVoice] Audio generated: {output}")
 
         return output
+
 
     # =====================================================
     # AUDIO PLAYBACK

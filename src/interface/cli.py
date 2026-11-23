@@ -2,7 +2,7 @@
 from src.core.conversation import Conversation
 import json
 # from src.voice.tts_engine import TTSEngine
-from src.voice.stheno_voice import SthenoVoice
+from src.voice.clit import SthenoVoice
 
 def display_memories(memories: list[dict]):
     print("\n========== EXTRACTED MEMORIES ==========")
