@@ -1,7 +1,8 @@
 
 from src.core.conversation import Conversation
 import json
-
+# from src.voice.tts_engine import TTSEngine
+from src.voice.stheno_voice import SthenoVoice
 
 def display_memories(memories: list[dict]):
     print("\n========== EXTRACTED MEMORIES ==========")
@@ -24,6 +25,11 @@ def main():
     conversation = Conversation(
         max_history_turns=10
     )
+
+    # nói
+    # tts = TTSEngine()
+
+    OmniVoice = SthenoVoice()
 
     print("==============================")
     print("       STHENO CHAT")
@@ -72,6 +78,16 @@ def main():
                 print("\n========== STHENO RESPONSE ==========")
                 print(f"\nStheno: {response['content']}")
                 print("=====================================")
+
+                
+
+                # Voice output
+                try:
+                    # tts.speak(response["content"])
+
+                    OmniVoice.speak(response["content"])
+                except Exception as error:
+                    print(f"\n[VOICE ERROR] {error}")
 
                 # Display extracted memories
                 memories = response["memories"]
