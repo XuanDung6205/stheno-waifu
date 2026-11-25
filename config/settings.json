@@ -4,11 +4,11 @@
     "ollama": {
         "base_url": "http://127.0.0.1:11434",
         "chat": {
-            "model": "stheno-qwen:latest",
+            "model": "stheno-qwen:test",
             "temperature": 0.8
         },
         "memory": {
-            "model": "stheno-qwen:latest",
+            "model": "stheno-qwen:test",
             "temperature": 0.1
         }
     },

@@ -253,7 +253,9 @@ def extract_memories(user_message: str) -> dict:
         "format": "json",
         "stream": False,
         "options": {
-            "temperature": 0
+            "num_ctx": 3072,
+            "temperature": 0,
+            "num_predict": 256
         }
     }
 
@@ -435,7 +437,9 @@ def select_relevant_memory_ids(
         "think": False,
         "format": "json",
         "options": {
-            "temperature": 0
+            "temperature": 0,
+            "num_ctx": 3072,
+            "num_predict": 64
         }
     }
 

@@ -2,7 +2,7 @@
 from src.core.conversation import Conversation
 import json
 # from src.voice.tts_engine import TTSEngine
-from src.voice.clit import SthenoVoice
+from src.voice.voice_controller import SthenoVoice
 
 def display_memories(memories: list[dict]):
     print("\n========== EXTRACTED MEMORIES ==========")
@@ -30,6 +30,7 @@ def main():
     # tts = TTSEngine()
 
     OmniVoice = SthenoVoice()
+    OmniVoice.initialize()
 
     print("==============================")
     print("       STHENO CHAT")

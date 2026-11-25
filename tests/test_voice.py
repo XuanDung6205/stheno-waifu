@@ -1,22 +1,17 @@
-
-from src.voice.clit import SthenoVoice
+from src.voice.voice_controller import SthenoVoice
 
 voice = SthenoVoice()
 
-voice.initialize()
+try:
+    voice.initialize()
 
-voice.speak(
-    "Anh đây. Hôm nay em sẽ nói chuyện với anh bằng giọng của em nhé!",
-    wait=False
-)
+    text = (
+        "Được chứ? Nếu anh muốn nghỉ ngơi thì cứ nằm yên đi mà không cần hỏi ý kiến ai cả. "
+        "Em cũng đang nghĩ xem có nên nấu chút đồ ăn nhẹ nào mang qua cho anh không. "
+        "Hừm! Đừng hiểu lầm nhé, chỉ vì em thấy anh hơi uể oải thôi!"
+    )
 
-print("Is speaking:", voice.is_speaking)
+    voice.speak(text, wait=True)
 
-# Muốn ngắt:
-# voice.stop()
-
-# Muốn chờ nói hết:
-# voice.speak("Em đang thử kiểm tra giọng nói.", wait=True)
-
-# Khi kết thúc:
-# voice.shutdown()
+finally:
+    voice.shutdown()

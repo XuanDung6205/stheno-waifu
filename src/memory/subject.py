@@ -89,7 +89,9 @@ class SubjectResolver:
             "think": False,
             "format": "json",
             "options": {
-                "temperature": 0
+                "temperature": 0,
+                "num_ctx": 3072,
+                "num_predict": 200
             }
         }
 
